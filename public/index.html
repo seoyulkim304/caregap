@@ -1,0 +1,1507 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>케어갭 CareGap 프로토타입</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* 병원 EMR 화면을 닮은 차분한 작업 화면: 좌측 정보, 가운데 작업, 우측 메모의 3단 */
+  --ink:#16222e; --sub:#55657a; --line:#d6dee8; --bg:#eef2f6; --panel:#ffffff;
+  --accent:#1d5fa8; --accent-soft:#e3edf8;
+  --ok:#2f7d4f; --warn:#b26b00; --crit:#b3261e; --ok-soft:#e5f3ea; --warn-soft:#fbf0dc; --crit-soft:#f9e3e1;
+  --font:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.55 var(--font)}
+button,input,select,textarea{font:inherit;color:inherit}
+h1,h2,h3{text-wrap:balance;margin:0}
+h2{font-size:20px} h3{font-size:16px}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+header.top{display:flex;align-items:center;gap:16px;padding:10px 20px;background:var(--ink);color:#fff;flex-wrap:wrap}
+header.top .brand{font-weight:700;letter-spacing:.02em}
+header.top .brand small{font-weight:400;opacity:.7;margin-left:6px}
+.steps{display:flex;gap:4px;flex-wrap:wrap;flex:1}
+.steps span{font-size:12px;padding:3px 8px;border-radius:999px;background:rgba(255,255,255,.08);color:rgba(255,255,255,.6)}
+.steps span.on{background:#fff;color:var(--ink);font-weight:600}
+.steps span.done{color:#fff}
+.who{font-size:13px;opacity:.85}
+main{padding:18px 20px 40px;max-width:1400px;margin:0 auto}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px}
+.grid3{display:grid;grid-template-columns:minmax(260px,1fr) minmax(320px,1.3fr) minmax(260px,1fr);gap:14px;align-items:start}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+@media (max-width:980px){.grid3,.grid2{grid-template-columns:1fr}}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.stack{display:flex;flex-direction:column;gap:10px}
+.muted{color:var(--sub)}
+.small{font-size:13px}
+.btn{border:1px solid var(--line);background:#fff;border-radius:6px;padding:7px 12px;cursor:pointer}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn.primary:disabled{opacity:.45;cursor:not-allowed}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn.sm{padding:3px 8px;font-size:13px}
+input[type=text],select,textarea{border:1px solid var(--line);border-radius:6px;padding:7px 9px;background:#fff;width:100%}
+textarea{resize:vertical;min-height:60px}
+label{font-size:13px;color:var(--sub)}
+.tag{display:inline-block;font-size:12px;padding:1px 7px;border-radius:999px;background:var(--accent-soft);color:var(--accent);margin-right:4px}
+.tag.crit{background:var(--crit-soft);color:var(--crit)} .tag.warn{background:var(--warn-soft);color:var(--warn)} .tag.ok{background:var(--ok-soft);color:var(--ok)}
+.chip{border:1px solid var(--line);background:#fff;border-radius:999px;padding:3px 10px;font-size:13px;cursor:pointer}
+.chip.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+table{border-collapse:collapse;width:100%}
+th,td{border-bottom:1px solid var(--line);padding:7px 8px;text-align:left;vertical-align:top;font-size:14px}
+th{font-size:12px;color:var(--sub);font-weight:600;background:#f6f8fb}
+.tablewrap{overflow-x:auto}
+/* 카덱스 */
+.kardex{border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.kardex .khead{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:10px 12px;background:var(--accent-soft);border-bottom:1px solid var(--line)}
+.kardex .khead b{font-size:16px}
+.kardex dl{display:grid;grid-template-columns:92px 1fr;margin:0}
+.kardex dt,.kardex dd{padding:6px 12px;border-bottom:1px solid var(--line);margin:0;font-size:14px}
+.kardex dt{color:var(--sub);background:#fafbfd}
+/* 메모 */
+#memoList{max-height:440px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-right:4px}
+.memo{border:1px solid var(--line);border-radius:6px;padding:7px 9px;background:#fffef7}
+.memo .mh{display:flex;justify-content:space-between;gap:6px;font-size:12px;color:var(--sub)}
+.slot{border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:#fff;display:flex;flex-direction:column;gap:4px}
+.slot .sh{font-size:13px;color:var(--sub);border-bottom:1px dashed var(--line);padding-bottom:3px}
+.slot .memo{border:0;border-left:3px solid #e7d98a;border-radius:0;padding:3px 8px}
+.slot .memo .mh{float:right}
+.memo.star{border-color:var(--warn)}
+.memo.circle{box-shadow:inset 3px 0 0 var(--accent)}
+.plist{display:flex;flex-direction:column;gap:4px}
+.pbtn{display:flex;justify-content:space-between;gap:8px;text-align:left;border:1px solid var(--line);background:#fff;border-radius:6px;padding:6px 9px;cursor:pointer}
+.pbtn.on{border-color:var(--accent);background:var(--accent-soft)}
+.caption{min-height:64px;padding:12px;border-radius:8px;background:#f6f8fb;border:1px dashed var(--line)}
+.bar{height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.bar > i{display:block;height:100%;background:var(--accent);width:0}
+/* 병실 배치도 */
+.ward{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+@media (max-width:640px){.ward{grid-template-columns:repeat(2,1fr)}}
+.bed{border:1px solid var(--line);border-radius:8px;padding:10px;background:#fff;cursor:pointer;text-align:left}
+.bed.on{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.bed.seen{background:#f6f8fb}
+.bed .rm{font-family:var(--mono);font-size:12px;color:var(--sub)}
+/* 업무표 */
+.sched td.t{font-family:var(--mono);width:64px;color:var(--sub)}
+.task{display:inline-flex;gap:6px;align-items:center;border-radius:6px;padding:2px 8px;margin:2px 4px 2px 0;font-size:13px;border:1px solid var(--line);background:#fff}
+.task.me{border-left:4px solid var(--accent)}
+tr.dropover td{background:var(--accent-soft)}
+#taskForm.flash{box-shadow:0 0 0 3px var(--accent-soft);border-radius:8px}
+.memo[draggable=true]{cursor:grab}
+.task.act{border-left:4px solid #6b8e23}
+.task.auto{background:#f6f8fb}
+.task.done{opacity:.55}
+.task.held{border-color:var(--warn);background:var(--warn-soft)}
+.task button{border:0;background:none;cursor:pointer;color:var(--sub);padding:0}
+.timer{font-family:var(--mono);font-size:22px;font-weight:600}
+.timer.low{color:var(--crit)}
+/* 근무 */
+.clock{font-family:var(--mono);font-size:40px;font-weight:600;line-height:1}
+.actor{border:1px solid var(--line);border-radius:8px;padding:10px}
+.log{max-height:420px;overflow-y:auto;display:flex;flex-direction:column;gap:4px}
+.log div{font-size:14px;padding:4px 6px;border-radius:4px}
+.log .ev{background:var(--crit-soft)} .log .ch{background:var(--accent-soft)} .log .dl{background:var(--warn-soft)}
+/* 카드 */
+.overlay{position:fixed;inset:0;background:rgba(15,25,35,.55);display:flex;align-items:center;justify-content:center;padding:16px;z-index:20}
+.card{background:#fff;border-radius:10px;max-width:620px;width:100%;padding:18px;display:flex;flex-direction:column;gap:12px;max-height:92vh;overflow:auto}
+.card .opt{display:flex;gap:10px;align-items:flex-start;text-align:left;border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:#fff;cursor:pointer;width:100%}
+.card .opt:hover{border-color:var(--accent)}
+.card .opt.on{border-color:var(--accent);background:var(--accent-soft)}
+.card .rk{flex:none;width:26px;height:26px;border-radius:50%;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-weight:600}
+.card .opt.on .rk{background:var(--accent);color:#fff;border-color:var(--accent)}
+/* 대화 */
+.chat{display:flex;flex-direction:column;gap:8px;max-height:460px;overflow-y:auto;padding:4px}
+.bub{max-width:88%;padding:9px 12px;border-radius:10px;white-space:pre-wrap}
+.bub.ai{background:#f1f4f8;align-self:flex-start}
+.bub.me{background:var(--accent);color:#fff;align-self:flex-end}
+.tl tr.hl td{background:var(--warn-soft)}
+.tl td{font-size:13px}
+.judge{font-weight:700}
+.judge.ok{color:var(--ok)} .judge.warn{color:var(--warn)} .judge.crit{color:var(--crit)}
+.meter{display:grid;grid-template-columns:120px 1fr 40px;gap:8px;align-items:center;font-size:14px}
+.notice{padding:10px 12px;border-radius:8px;background:var(--warn-soft);font-size:14px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand">케어갭<small>미수행 간호 원인 분석 교육</small></div>
+  <nav class="steps" id="steps"></nav>
+  <div class="who" id="who"></div>
+</header>
+<main id="main"></main>
+<div id="layer"></div>
+
+<script>
+/* ================= 데이터 ================= */
+const S1_PIDS=['A','E','B','J','C','H','D','F','G','I'];
+const S1_P={
+ A:{room:'701호-1',name:'김영호',sex:'남',age:72,dx:'지역사회획득 폐렴',o2:'비강 캐뉼라 2L (목표 SpO2 94% 이상)',act:'침상 주변 보행',diet:'일반식',allergy:'없음',meds:'Ceftriaxone 2g IV q24h (14시)',care:'SpO2 94% 이상 유지',score:'Morse 25 / Braden 18',plan:'내일 흉부 X선 추적',key:false},
+ E:{room:'701호-2',name:'정순자',sex:'여',age:85,dx:'폐렴',o2:'실내 공기 (목표 SpO2 94% 이상)',act:'보조 하 보행',diet:'일반식(죽)',allergy:'페니실린',meds:'Levofloxacin 750mg PO qd (09시)',care:'낙상 고위험: 낙상 예방 표지, 침상 난간 올림, 보조 하 보행',score:'Morse 55 / Braden 16',plan:'–',key:true},
+ B:{room:'702호-1',name:'박만수',sex:'남',age:78,dx:'흡인성 폐렴, 뇌경색 후 우측 편마비',o2:'실내 공기 (목표 SpO2 94% 이상)',act:'침상 안정',diet:'연하곤란식(점도 증진)',allergy:'없음',meds:'Ampicillin/sulbactam 3g IV q6h (04·10·16·22시)',care:'체위 변경 q2h(짝수 시), 식사 시 침상 머리 30° 이상',score:'Morse 45 / Braden 12',plan:'연하 재평가 예정',key:true},
+ J:{room:'702호-2',name:'서동민',sex:'남',age:67,dx:'폐렴 회복기',o2:'실내 공기 (목표 SpO2 95% 이상)',act:'자유 보행',diet:'일반식',allergy:'없음',meds:'Amoxicillin/clavulanate PO tid',care:'–',score:'Morse 15 / Braden 21',plan:'모레 퇴원 예정',key:false},
+ C:{room:'703호-1',name:'이미경',sex:'여',age:64,dx:'제2형 당뇨병(인슐린 신규), 폐렴 회복',o2:'실내 공기 (목표 SpO2 95% 이상)',act:'자유 보행',diet:'당뇨식 1,600kcal (점심 12:00 배식)',allergy:'없음',meds:'식전 BST 후 Insulin lispro 4U SC (07:30·12:00·17:30), Insulin glargine 10U SC (21시)',care:'저혈당 증상 관찰',score:'Morse 20 / Braden 20',plan:'오늘 15시 퇴원 · 펜 인슐린 자가주사 교육 필요',key:true},
+ H:{room:'703호-2',name:'윤지수',sex:'여',age:34,dx:'천식 급성 악화 회복기',o2:'실내 공기 (목표 SpO2 95% 이상)',act:'자유 보행',diet:'일반식',allergy:'아스피린',meds:'Budesonide/formoterol 흡입 bid',care:'흡입기 사용법 확인',score:'Morse 10 / Braden 22',plan:'내일 퇴원 예정',key:false},
+ D:{room:'705호-1',name:'최병철',sex:'남',age:69,dx:'COPD 급성 악화',o2:'비강 캐뉼라 2L, 목표 SpO2 88~92%',act:'침상 주변 보행',diet:'일반식',allergy:'없음',meds:'Methylprednisolone 40mg IV q12h (09·21시), Salbutamol/ipratropium 네뷸 q6h (06·12·18·24시)',care:'호흡 양상·SpO2 관찰, 고농도 산소 주의',score:'Morse 35 / Braden 17',plan:'–',key:true},
+ F:{room:'705호-2',name:'한상우',sex:'남',age:58,dx:'기관지확장증',o2:'실내 공기 (목표 SpO2 94% 이상)',act:'자유 보행',diet:'일반식',allergy:'없음',meds:'N-acetylcysteine PO tid',care:'객담 배출 운동 격려',score:'Morse 15 / Braden 21',plan:'–',key:false},
+ G:{room:'706호-1',name:'오정희',sex:'여',age:61,dx:'폐암, 항암 2일차',o2:'실내 공기 (목표 SpO2 95% 이상)',act:'자유 보행',diet:'일반식',allergy:'없음',meds:'항구토제 PRN',care:'오심·구토 관찰',score:'Morse 20 / Braden 19',plan:'항암 3일차 내일',key:false},
+ I:{room:'706호-2',name:'강대식',sex:'남',age:74,dx:'간질성 폐질환',o2:'비강 캐뉼라 3L (목표 SpO2 94% 이상)',act:'보조 하 보행',diet:'일반식',allergy:'없음',meds:'Pirfenidone PO tid',care:'활동 시 SpO2 관찰',score:'Morse 40 / Braden 18',plan:'–',key:false}
+};
+const S1_HANDOVER=[
+ {pid:'A',t:'701호 1번 김영호 님, 72세 남자, 폐렴입니다. 산소 2리터 비강 캐뉼라로 쓰고 있고 목표 산소포화도는 94퍼센트 이상이에요. 2시에 세프트리악손 들어갈 예정입니다. 밤사이 특이사항 없었어요.'},
+ {pid:'E',t:'701호 2번 정순자 님, 85세 여자, 폐렴이고 낙상 고위험, 모스 55점입니다.'},
+ {pid:'E',t:'새벽 3시쯤 혼자 침대에서 내려오려고 하셔서 제가 말렸어요. 화장실 가고 싶다고 하셨고요. 오늘도 혼자 움직이실 수 있으니까 잘 봐 주세요.'},
+ {pid:'B',t:'702호 1번 박만수 님, 78세 남자, 흡인성 폐렴이고 우측 편마비 있으세요. 브레이든 12점이라 짝수 시간마다 체위 변경하고 있고, 새벽 6시에 좌측위로 돌려 드렸어요. 식사 때는 침상 머리 꼭 올려 주세요.'},
+ {pid:'J',t:'702호 2번 서동민 님, 폐렴 회복기고 모레 퇴원 예정입니다. 특이사항 없어요.'},
+ {pid:'C',t:'703호 1번 이미경 님, 64세 여자, 당뇨로 인슐린 새로 시작하셨고 오늘 3시 퇴원입니다. 펜 인슐린 자가주사 교육이 아직 안 됐어요.'},
+ {pid:'C',t:'따님이 점심 지나서 오셔서 같이 배우고 싶다고 하셨어요. 12시 식전 혈당 재고 인슐린 4단위 들어가야 해요.'},
+ {pid:'H',t:'703호 2번 윤지수 님, 천식 회복기고 내일 퇴원이라 흡입기 사용법 한 번 더 봐 주시면 됩니다.'},
+ {pid:'D',t:'705호 1번 최병철 님, 69세 남자, COPD 악화로 입원하셨고 산소 2리터, 목표 산소포화도 88에서 92퍼센트입니다.'},
+ {pid:'D',t:'밤에 가래가 많이 늘었고, 새벽에 숨차다고 한 번 호출하셨어요. 네뷸 하고 나서 좀 나아지셨는데 오늘 잘 지켜봐 주세요.'},
+ {pid:'F',t:'705호 2번 한상우 님, 기관지확장증이고 객담 배출 운동 하고 계세요. 특이사항 없습니다.'},
+ {pid:'G',t:'706호 1번 오정희 님, 폐암 항암 2일차고 오심 있으면 항구토제 PRN 있어요. 밤에는 괜찮으셨어요.'},
+ {pid:'I',t:'706호 2번 강대식 님, 간질성 폐질환으로 산소 3리터 쓰고 계시고 목표 산소포화도 94퍼센트 이상이에요. 특이사항 없습니다. 이상입니다.'}
+];
+/* 음성에만 있는 정보: 결과 리포트의 '정보 흐름'에 사용 */
+const S1_INFO=[
+ {k:'박만수 체위 변경 q2h',pid:'B',voice:true,kardex:true,re:/체위|q2h|2시간|짝수|돌려/,task:t=>t.pid==='B'&&t.kind==='체위 변경'},
+ {k:'정순자 낙상 고위험',pid:'E',voice:true,kardex:true,re:/낙상|모스|morse|고위험/i,task:t=>t.pid==='E'&&t.kind==='낙상 위험 확인'},
+ {k:'정순자 새벽 혼자 내려오려 함',pid:'E',voice:true,kardex:false,re:/새벽|혼자|내려오|3시/,task:t=>t.pid==='E'&&t.kind==='낙상 위험 확인'},
+ {k:'이미경 딸과 함께 교육 (점심 이후)',pid:'C',voice:true,kardex:false,re:/딸|따님|보호자|같이|점심/,task:t=>t.pid==='C'&&t.kind==='교육'},
+ {k:'최병철 밤사이 가래 증가·새벽 숨참',pid:'D',voice:true,kardex:false,re:/가래|숨|호흡|새벽|객담/,task:t=>t.pid==='D'&&(t.kind==='사정'||t.kind==='V/S')}
+];
+const S1_CANNED=[
+ {re:/정순자|E|낙상|화장실/,a:'정순자 님은 새벽 3시에 화장실 가고 싶다고 혼자 내려오려 하셨어요. 호출벨을 손 닿는 데 두고, 혼자 일어나지 말고 부르시라고 다시 말씀드려 주세요.'},
+ {re:/최병철|D|COPD|가래|숨/,a:'최병철 님은 밤에 가래가 늘었고 새벽에 한 번 숨차다고 하셨어요. 네뷸 후 SpO2 90% 정도로 유지됐어요.'},
+ {re:/이미경|C|인슐린|교육|딸|따님/,a:'이미경 님 따님은 점심 지나서, 1시쯤 오신다고 했어요. 펜 인슐린 교육은 따님 오시면 같이 하는 게 좋겠어요.'},
+ {re:/박만수|B|체위|욕창/,a:'박만수 님은 새벽 6시에 좌측위로 돌려 드렸어요. 다음은 8시예요.'}
+];
+const S1_OBS={
+ A:{text:'비강 캐뉼라가 코에서 빠져 턱에 걸려 있다. 환자는 졸고 있다. 모니터 SpO2 89%.',need:['캐뉼라 위치 확인·다시 끼우기'],memo:false},
+ E:{text:'침대 가장자리에 걸터앉아 있다. 호출벨은 침대 발치 쪽 바닥에 떨어져 있다. "화장실 가려고…"',need:['호출벨 위치 확인','혼자 일어나지 말고 호출하도록 설명'],memo:true},
+ B:{text:'침상 머리가 15도 정도로 낮다. 오른쪽 팔다리를 거의 움직이지 못한다. 기침할 때 가래 끓는 소리가 난다.',need:['침상 머리 올리기'],memo:false},
+ J:{text:'산책을 다녀와 침대에 앉아 있다. "오늘 컨디션 좋아요."',need:[],memo:false},
+ C:{text:'"오늘 퇴원 맞죠? 주사 놓는 건 아직 무서워요." 손에 인슐린 펜 설명서를 들고 있다.',need:[],memo:true},
+ H:{text:'"내일 퇴원이죠?" 호흡음 깨끗, 말할 때 숨참 없음.',need:[],memo:false},
+ D:{text:'"가래가 끓어요." 호흡수 24회/분, SpO2 90%, 말할 때 조금 숨이 차 보인다.',need:[],memo:true},
+ F:{text:'객담 배출 운동을 하고 있다. 특이 호소 없음.',need:[],memo:false},
+ G:{text:'"속이 조금 메스꺼워요." 오심 호소, 구토 없음.',need:[],memo:false},
+ I:{text:'산소 3L 유지, 안정 시 SpO2 95%. 특이 호소 없음.',need:[],memo:false}
+};
+const ACTIONS={
+ '낙상 예방':['침대 높이·바퀴 고정 확인','호출벨 위치 확인','바닥 물기·장애물 치우기','미끄럼 방지 신발 확인','자주 쓰는 물건을 손 닿는 곳에 두기','혼자 일어나지 말고 호출하도록 설명'],
+ '호흡·흡인':['캐뉼라 위치 확인·다시 끼우기','침상 머리 올리기','EDBC (심호흡·기침 격려)'],
+ '보고':['주치의에게 연락']
+};
+const KINDS={'체위 변경':10,'낙상 위험 확인':5,'교육':30,'정서적 지지':10,'사정':5,'드레싱 교환':15,'보행 동행':10,'V/S':5,'기타':10};
+const RN_ONLY=['낙상 위험 확인','교육','정서적 지지','사정'];
+const TIMES=[];for(let m=480;m<=870;m+=30)TIMES.push(m);
+const S1_AUTO=[
+ {t:480,pid:'*',label:'V/S·BST 라운딩',kind:'V/S',who:'act',dur:30},
+ {t:540,pid:'*',label:'09시 정규 투약',kind:'투약',who:'me',dur:30},
+ {t:600,pid:'B',label:'박만수 항생제 IV',kind:'투약',who:'me',dur:10},
+ {t:720,pid:'C',label:'이미경 식전 BST',kind:'BST',who:'act',dur:5,tag:'C_BST'},
+ {t:720,pid:'C',label:'이미경 식전 인슐린',kind:'투약',who:'me',dur:10,tag:'C_INS'},
+ {t:840,pid:'A',label:'김영호 항생제 IV',kind:'투약',who:'me',dur:10}
+];
+let PIDS,P,HANDOVER,INFO,CANNED_Q,OBS,AUTO_TASKS,CARDS,SCN;
+const DEPTS={
+ '내과계 병동':['호흡기내과','소화기내과','순환기내과','신장내과','내분비내과','혈액종양내과','감염내과','류마티스내과','신경과'],
+ '외과계 병동':['외과(간담췌)','외과(위장관)','외과(대장항문)','외과(유방갑상선)','정형외과','신경외과','흉부외과','비뇨의학과','산부인과','이비인후과'],
+ '중환자실':['내과계 중환자실','외과계 중환자실','심혈관 중환자실','신경계 중환자실','신생아 중환자실','소아 중환자실'],
+ '특수부서':['응급실','수술실','회복실','분만실','인공신장실'],
+ '기타 병동':['소아청소년','호스피스·완화','정신건강의학과','재활']
+};
+const STEPS=[['start','설정'],['assign','배정'],['handover','인계'],['kardex','카덱스'],['round','라운딩'],['sched','업무표'],['shift','근무'],['chat','원인 대화'],['summary','원인 정리'],['rewind','되감기'],['plan','행동 계획'],['report','리포트']];
+
+/* ================= 상태 ================= */
+const S={kLeft:300,rLeft:300,shiftNo:1,hist:null,practice:[],viewArch:false,aiCompare:'',step:'start',name:'',big:'내과계 병동',dept:'호흡기내과',memos:[],seq:1,kv:{},kvLog:[],plays:0,hvDone:false,round:{},roundSel:'A',schedule:[],schedLeft:480,schedUsed:0,run1:null,run2:null,mode:'first',
+ chat:[],chatAI:null,chatDone:false,chatActions:[],chatBalance:'none',summary:null,plan:null,reqFeedback:'',handoff:null,rewindPoint:null,aiReport:''};
+const hm=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const $=s=>document.querySelector(s);
+let SAMPLE=null;
+/* 브라우저 내장 음성(Web Speech API): 권한 없이 한국어로 읽기 */
+const WS=('speechSynthesis' in window)?window.speechSynthesis:null;
+let KO_VOICE=null;
+function pickVoice(){if(!WS)return;const v=WS.getVoices();KO_VOICE=v.find(x=>/^ko/i.test(x.lang)&&/Google|Natural|Online/i.test(x.name))||v.find(x=>/^ko/i.test(x.lang))||null;if(S&&S.step==='handover'&&!HV.playing)render();}
+if(WS){pickVoice();WS.onvoiceschanged=pickVoice;}
+const hasVoice=()=>!!(WS&&KO_VOICE);
+/* AI 호출: 우리 서버(/api/claude)를 거쳐 Claude API 사용. API 키는 서버에만 있음 */
+const AI_BASE=window.CAREGAP_AI_BASE||'';
+async function serverSample(prompt,opts={}){
+  let res;
+  try{res=await fetch(AI_BASE+'/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt,modelTier:opts.modelTier||'default'})});}
+  catch(e){throw {code:'network'};}
+  if(!res.ok)throw {code:res.status===429?'rate_limited':(res.status===401||res.status===403)?'not_granted':'http_'+res.status};
+  const reader=res.body.getReader(),dec=new TextDecoder();let buf='',text='';
+  for(;;){const {value,done}=await reader.read();if(done)break;buf+=dec.decode(value,{stream:true});let i;
+    while((i=buf.indexOf('\n\n'))>=0){const line=buf.slice(0,i).split('\n').find(l=>l.startsWith('data:'));buf=buf.slice(i+2);if(!line)continue;
+      const ev=JSON.parse(line.slice(5));
+      if(ev.type==='delta'){text+=ev.text;if(opts.onText)opts.onText({text});}
+      else if(ev.type==='error')throw {code:ev.code||'server_error'};}}
+  return {text};
+}
+(async()=>{try{const r=await fetch(AI_BASE+'/api/claude');if(r.ok)SAMPLE=serverSample;}catch(e){}
+  if(S.step==='handover'||S.step==='chat')render();})();
+async function ask(prompt,opts={}){
+  if(!SAMPLE) throw new Error('none');
+  const r=await SAMPLE(prompt,Object.assign({cache:false,modelTier:'default'},opts));
+  return r.text||'';
+}
+function parseJSON(t){const a=t.indexOf('{'),b=t.lastIndexOf('}');if(a<0||b<0)return null;try{return JSON.parse(t.slice(a,b+1))}catch(e){return null}}
+function scoreTxt(sc){const m=+(/Morse (\d+)/.exec(sc)||[])[1],b=+(/Braden (\d+)/.exec(sc)||[])[1];
+  const ml=m>=45?'고위험군':m>=25?'중위험군':'저위험군';const bl=b<=9?'초고위험군':b<=12?'고위험군':b<=14?'중등도 위험군':b<=18?'경증 위험군':'위험 없음';
+  const tag=(t,c)=>`<span class="tag ${c}">${t}</span>`;
+  return `Morse ${m}점 ${tag(ml,m>=45?'crit':m>=25?'warn':'ok')} / Braden ${b}점 ${tag(bl,b<=12?'crit':b<=18?'warn':'ok')}`;}
+const pl=p=>p==='*'?'전체':P[p].name;
+const khead=p=>`${P[p].room} (${P[p].name} / ${P[p].sex} / ${P[p].age}세)`;
+
+/* ================= 공통 렌더 ================= */
+function go(step){S.step=step;render();window.scrollTo(0,0);}
+function render(){
+  const idx=STEPS.findIndex(s=>s[0]===S.step);
+  $('#steps').innerHTML=STEPS.map((s,i)=>`<span class="${i===idx?'on':i<idx?'done':''}">${i+1}. ${s[1]}</span>`).join('');
+  $('#who').textContent=S.name?`${S.shiftNo}차 근무 · ${SCN.title} · 담당간호사 ${S.name}`:'';
+  const f={start:vStart,assign:vAssign,handover:vHandover,kardex:vKardex,round:vRound,sched:vSched,shift:vShift,chat:vChat,summary:vSummary,rewind:vRewind,plan:vPlan,report:vReport}[S.step];
+  const keep=$('#memoList')?$('#memoList').scrollTop:0;
+  $('#main').innerHTML=f();
+  if($('#memoList'))$('#memoList').scrollTop=keep;
+  after[S.step]&&after[S.step]();
+}
+const after={};
+function kardexHTML(p){
+  const k=P[p];
+  return `<div class="kardex"><div class="khead"><b>${khead(p)}</b><span>담당간호사: ${esc(S.name||'__')}</span></div>
+  <dl><dt>진단</dt><dd>${k.dx}</dd><dt>산소</dt><dd>${k.o2}</dd><dt>활동</dt><dd>${k.act}</dd><dt>식이</dt><dd>${k.diet}</dd><dt>알레르기</dt><dd>${k.allergy}</dd><dt>투약</dt><dd>${k.meds}</dd><dt>간호 주의</dt><dd>${k.care}</dd><dt>위험 점수</dt><dd>${scoreTxt(k.score)}</dd><dt>예정</dt><dd>${k.plan}</dd></dl></div>`;
+}
+function viewKardex(p,where){S.kv[p]=(S.kv[p]||0)+1;S.kvLog.push({p,where});}
+/* 메모 패널: 다시 그려도 스크롤 위치 유지 */
+function memoPanel(defPid){
+  return `<div class="stack"><div class="row" style="justify-content:space-between"><h3>내 인계장</h3><span class="small muted" id="memoCount">${S.memos.length}개</span></div>
+  <div id="memoList">${memoSlots()}</div>
+  <div class="stack" style="gap:6px">
+   <div class="row"><select id="memoPid" style="width:auto">${PIDS.map(p=>`<option value="${p}" ${p===defPid?'selected':''}>${p} ${P[p].name}</option>`).join('')}</select></div>
+   <textarea id="memoText" placeholder="들은 내용, 할 일을 적고 Enter (줄바꿈은 Shift+Enter)"></textarea>
+   <div class="row" id="memoTags">${['중요','낙상','교육','피부','재확인'].map(t=>`<button class="chip" data-act="mtag" data-v="${t}">${t}</button>`).join('')}</div>
+   <button class="btn" data-act="addMemo">메모 추가</button></div></div>`;
+}
+function memoSlots(){return PIDS.map(p=>{const ms=S.memos.filter(m=>m.pid===p);return `<div class="slot" id="mg-${p}"><div class="sh"><span class="mono">${P[p].room}</span> <b>${P[p].name}</b></div>${ms.length?ms.map(memoHTML).join(''):'<div class="small muted" style="padding:2px 0">–</div>'}</div>`}).join('');}
+function guessKind(t){return /체위|돌려|욕창|q2h/i.test(t)?'체위 변경':/낙상|호출벨|혼자|내려오|모스|morse/i.test(t)?'낙상 위험 확인':/교육|주사|딸|따님|흡입기/.test(t)?'교육':/드레싱/.test(t)?'드레싱 교환':/보행|화장실/.test(t)?'보행 동행':/가래|숨|SpO2|산소|호흡|재확인|사정|네뷸/i.test(t)?'사정':/V\/S|활력/.test(t)?'V/S':'기타';}
+const ACT_KIND=['체위 변경','드레싱 교환','보행 동행','V/S'];
+function memoToSF(m,t){const k=guessKind(m.text);SF.pid=m.pid;SF.kind=k;SF.who=ACT_KIND.includes(k)?'act':'me';SF.etc=m.text;SF.from=m.id;if(t!=null)SF.t=t;}
+function memoHTML(m){
+  const sch=S.step==='sched';
+  return `<div class="memo ${m.star?'star':''} ${m.circle?'circle':''}" ${sch&&S.memoEdit!==m.id?`draggable="true" data-mid="${m.id}" title="업무표의 시간 칸으로 끌어다 놓을 수 있어요"`:''}><div class="mh"><span></span><span>${sch?`<button class="btn sm" data-act="memo2task" data-id="${m.id}">${m.used?'✔ ':''}업무표로</button> `:''}
+  <button class="btn sm" data-act="editMemo" data-id="${m.id}" title="이 칸에서 고치기">✎</button>
+  <button class="btn sm" data-act="star" data-id="${m.id}" title="위험·할 일 별표">${m.star?'★':'☆'}</button>
+  <button class="btn sm" data-act="circle" data-id="${m.id}" title="카덱스에 없는 정보 동그라미">${m.circle?'●':'○'}</button>
+  <button class="btn sm" data-act="delMemo" data-id="${m.id}" title="삭제">✕</button></span></div>
+  ${S.memoEdit===m.id?`<textarea id="memoEdit" data-id="${m.id}" style="min-height:48px">${esc(m.text)}</textarea><div class="row" style="gap:4px;margin-top:4px"><button class="btn sm primary" data-act="saveMemoEdit">저장</button><button class="btn sm" data-act="cancelMemoEdit">취소</button><span class="small muted">Enter 저장 · Esc 취소</span></div>`:`<div data-act="editMemo" data-id="${m.id}" style="cursor:text;white-space:pre-wrap" title="눌러서 고치기">${esc(m.text)}</div>`}<div>${m.tags.map(t=>`<span class="tag">${t}</span>`).join('')}</div></div>`;
+}
+let pendingTags=[];
+function addMemo(pid,text,tags,src){if(!text.trim())return;S.memos.push({id:S.seq++,pid,text:text.trim(),tags:tags||[],src,star:false,circle:false});}
+function saveMemoEdit(){const ta=$('#memoEdit');if(!ta)return;const m=S.memos.find(x=>x.id==ta.dataset.id);const v=ta.value.trim();if(m){if(v)m.text=v;else S.memos=S.memos.filter(x=>x!==m);}S.memoEdit=null;refreshMemos();}
+function refreshMemos(){const el=$('#memoList');if(!el)return;const k=el.scrollTop;el.innerHTML=memoSlots();el.scrollTop=k;const ta=$('#memoEdit');if(ta){ta.focus();ta.setSelectionRange(ta.value.length,ta.value.length);}const c=$('#memoCount');if(c)c.textContent=S.memos.length+'개';}
+function showSlot(pid){const el=$('#memoList'),g=$('#mg-'+pid);if(!el||!g)return;const top=g.offsetTop-el.offsetTop;if(top<el.scrollTop||top+g.offsetHeight>el.scrollTop+el.clientHeight)el.scrollTop=Math.max(0,top-4);}
+function saveMemo(){const pid=$('#memoPid').value;const tx=$('#memoText').value;if(!tx.trim())return;addMemo(pid,tx,pendingTags.slice(),S.step);pendingTags=[];$('#memoText').value='';document.querySelectorAll('#memoTags .chip').forEach(c=>c.classList.remove('on'));refreshMemos();showSlot(pid);$('#memoText').focus();}
+
+/* ================= 1. 시작 설정 ================= */
+function vStart(){
+  const ready=S.dept==='호흡기내과';
+  return `<div class="panel stack" style="max-width:620px;margin:20px auto">
+   <h2>근무를 시작하기 전에</h2>
+   <p class="muted">첫 접속에서만 입력해요. 이름은 카덱스의 담당간호사와 결과 리포트에 들어가요.</p>
+   <div class="stack" style="gap:4px"><label for="nm">참여자 이름</label><input type="text" id="nm" value="${esc(S.name)}" placeholder="예: 김간호"></div>
+   <div class="grid2"><div class="stack" style="gap:4px"><label for="big">대분류</label><select id="big">${Object.keys(DEPTS).map(b=>`<option ${b===S.big?'selected':''}>${b}</option>`).join('')}</select></div>
+   <div class="stack" style="gap:4px"><label for="dept">세부 과</label><select id="dept">${DEPTS[S.big].map(d=>`<option ${d===S.dept?'selected':''}>${d}</option>`).join('')}</select></div></div>
+   ${ready?'<p class="small"><span class="tag ok">검토 완료</span> 호흡기내과 시나리오 2개 (시연은 응급상황 시나리오)</p>':'<p class="notice">이 과는 부서 특성 카드로 AI가 시나리오를 만들어요. <b>검토 전</b> 시나리오라 시연에서는 아직 열지 않았어요. 호흡기내과를 골라 주세요.</p>'}
+   <button class="btn primary" data-act="startGo" ${ready?'':'disabled'}>근무 시작</button></div>`;
+}
+after.start=()=>{
+  $('#big').onchange=e=>{S.big=e.target.value;S.dept=DEPTS[S.big][0];S.name=$('#nm').value;render();};
+  $('#dept').onchange=e=>{S.dept=e.target.value;S.name=$('#nm').value;render();};
+};
+/* ================= 2. 배정 ================= */
+function vAssign(){
+  return `<div class="panel stack" style="max-width:620px;margin:20px auto">
+  <h2>오늘의 근무 배정</h2>
+  <table><tr><th>근무</th><td>낮번 07:00~15:00</td></tr><tr><th>부서</th><td>${S.big} › ${S.dept}</td></tr><tr><th>근무 회차</th><td>${S.shiftNo}차 근무</td></tr><tr><th>간호 체계</th><td>${SCN.ASSIGN}</td></tr><tr><th>인력</th><td>정원대로 모두 근무 (결원 없음)</td></tr></table>
+  ${S.shiftNo===2&&S.practice&&S.practice.length?`<div class="notice"><b>1차 근무에서 받은 연습 과제</b><ul style="margin:4px 0 0;padding-left:18px">${S.practice.map(id=>`<li><b>${BEHAV[id].name}</b> · ${BEHAV[id].tip}</li>`).join('')}</ul><div class="small" style="margin-top:4px">오늘은 1차와 다른 상황이에요. 받은 피드백을 새 상황에 적용해 보세요.</div></div>`:''}
+  <p class="muted">오늘 무슨 일이 생길지는 알려 주지 않아요. 밤번 간호사의 음성 인계부터 시작해요.</p>
+  <button class="btn primary" data-act="go" data-v="handover">음성 인계 듣기</button></div>`;
+}
+/* ================= 3. 음성 인계 ================= */
+let HV={i:-1,playing:false,timer:null,caption:false};
+function vHandover(){
+  const cur=HV.i>=0?HANDOVER[HV.i]:null;const p=cur?cur.pid:'A';
+  const left=2-S.plays;
+  return `<div class="grid3">
+   <div class="stack"><h3>지금 인계 중인 환자</h3>${kardexHTML(p)}<p class="small muted">카덱스는 음성에 맞춰 자동으로 넘어가요. 지나간 환자로 돌아갈 수 없어요.</p></div>
+   <div class="panel stack"><div class="row" style="justify-content:space-between"><h3>음성 인계</h3><span class="small muted">시연용 압축 인계 · 실제 약 15분 중 일부</span></div>
+    <div class="bar"><i id="hvBar" style="width:${Math.max(0,(HV.i+1)/HANDOVER.length*100)}%"></i></div>
+    <div class="caption" id="caption">${cur?(HV.caption||!hasVoice()?esc(cur.t):'<span class="muted">🔊 듣는 중… (자막 꺼짐)</span>'):'<span class="muted">[인계 시작]을 누르면 밤번 간호사가 인계를 시작해요.</span>'}</div>
+    <div class="row">
+     ${HV.playing?'<button class="btn" data-act="hvStop">인계 끝내기</button>':`<button class="btn primary" data-act="hvPlay" ${left<=0?'disabled':''}>${S.plays===0?'인계 시작':`한 번 더 듣기 (${left}회 남음)`}</button>`}
+     ${hasVoice()?`<button class="chip ${HV.caption?'on':''}" data-act="cap">자막 ${HV.caption?'켬':'끔'}</button><span class="small muted">브라우저 한국어 음성 · 1.2배속</span>`:'<span class="small muted">이 브라우저에 한국어 음성이 없어 자막으로 진행해요. (Chrome·Edge 권장)</span>'}
+    </div>
+    ${qBox(p)}
+    <div class="row" style="justify-content:flex-end"><button class="btn primary" data-act="go" data-v="kardex" ${S.plays>0&&!HV.playing?'':'disabled'}>다음: 카덱스 재확인</button></div>
+   </div>
+   <div class="panel">${memoPanel(p)}</div></div>`;
+}
+/* 밤번 간호사 질문 답변 (AI가 없을 때): 질문 주제를 찾아 그 환자에 맞게 대화하듯 답함 */
+const QTOPIC=[
+ ['aspir',/흡인|사레|삼키|연하|가래 끓/],['meal',/식사|밥|먹|식이|금식|입맛/],['nausea',/오심|구토|메스/],
+ ['o2',/산소|포화도|spo2|캐뉼라|숨|호흡|헐떡/i],['fall',/낙상|넘어|화장실|혼자|보행|걷|침대|호출벨/],['sleep',/잠|수면|밤|새벽|주무/],
+ ['pain',/통증|아프|아파|진통/],['bst',/혈당|인슐린|bst|저혈당/i],['med',/약|항생제|투약|주사|prn|네뷸/i],['vs',/혈압|열|체온|맥박|활력|v\/s/i],
+ ['edu',/교육|퇴원|흡입기|설명|자가/],['emo',/기분|울|정서|우울|불안|힘들|무서/],['family',/보호자|가족|딸|아들|따님/],
+ ['drain',/흉관|배액|기포|드레싱|출혈|부위/],['iso',/격리|결핵|음압|n95/i],['skin',/욕창|피부|체위|발적/]
+];
+const NQ={1:{
+ A:{o2:'산소 2리터로 밤새 SpO2 93~95% 유지됐어요. 다만 주무시면서 캐뉼라가 자주 빠져서 라운딩 때 한 번 봐 주세요.',med:'2시에 세프트리악손 들어갈 예정이고, 밤에는 투약 문제 없었어요.',sleep:'밤에 잘 주무셨어요. 자다가 캐뉼라를 빼신 적이 한 번 있어요.'},
+ E:{fall:'네, 새벽 3시쯤 화장실 가겠다고 혼자 침대에서 내려오려고 하셔서 제가 말렸어요. 넘어지시진 않았는데 오늘도 혼자 움직이실 수 있어요. 호출벨을 손 닿는 데 두고 다시 설명해 주세요.',sleep:'새벽에 한 번 깨셔서 화장실 가려고 하셨고, 그 뒤로는 주무셨어요.',meal:'죽은 반 정도 드세요. 식사 중 특이사항은 없어요.',o2:'실내 공기로 SpO2 94~95% 유지돼요.'},
+ B:{aspir:'밤사이 흡인 소견은 없었어요. 다만 기침할 때 가래 끓는 소리가 나서, 식사할 때 침상 머리 꼭 30도 이상 올려 주세요.',meal:'연하곤란식으로 드시고, 식사 때 사레 걸린 적은 밤사이 없었어요. 천천히 드시게 보조해 주세요.',skin:'새벽 6시에 좌측위로 돌려 드렸고, 천골 부위는 그때까지 괜찮았어요. 다음은 8시예요.',med:'항생제는 4시에 들어갔고 다음은 10시예요.',o2:'실내 공기로 SpO2 95% 정도예요.'},
+ J:{edu:'모레 퇴원이라 오늘 특별히 할 교육은 없어요.',o2:'실내 공기로 SpO2 96~97%예요.'},
+ C:{bst:'아침 식전 혈당은 168이었고 인슐린 4단위 들어갔어요. 저혈당 증상은 없었어요. 12시 식전에 BST 재고 인슐린 들어가야 해요.',edu:'펜 인슐린 자가주사 교육은 아직 못 했어요. 따님이 점심 지나서 오시면 같이 하시는 게 좋겠어요.',family:'따님이 점심 지나서, 1시쯤 오셔서 같이 배우고 싶다고 하셨어요.',emo:'주사 놓는 걸 좀 무서워하세요.'},
+ H:{o2:'밤새 SpO2 97% 이상이었고 숨참 없었어요.',edu:'내일 퇴원이라 흡입기 사용법 한 번만 더 확인해 주세요.'},
+ D:{o2:'밤새 SpO2 89~91% 정도였어요. 새벽에 숨차다고 한 번 호출하셔서 네뷸 하고 좀 나아지셨어요. 목표가 88~92%라 산소 올릴 때 조심해 주세요.',sleep:'가래 때문에 자주 깨셨어요.',med:'새벽 6시에 네뷸 했고 다음은 12시예요. 스테로이드는 9시에 들어가요.',aspir:'흡인은 아니고 가래가 많이 늘었어요. 뱉기 힘들어하세요.'},
+ F:{o2:'실내 공기로 SpO2 96%예요. 객담 배출 운동 잘하고 계세요.'},
+ G:{nausea:'밤에는 오심 없이 괜찮으셨어요. 항구토제 PRN은 안 들어갔어요.',meal:'저녁은 반 정도 드셨어요.'},
+ I:{o2:'산소 3리터로 안정 시 SpO2 95% 정도예요. 움직이실 때는 조금 떨어져요.',fall:'보조 하에 걸으세요. 밤에 혼자 움직이신 적은 없어요.'}
+},2:{
+ A:{o2:'네, 산소 2리터로 밤새 SpO2 94~96% 유지됐어요. 숨차다는 호소도 없었어요.',med:'9시에 세프트리악손 들어가요. 밤에 투약 문제는 없었어요.',vs:'밤새 열 없었고 혈압도 안정적이었어요.'},
+ E:{fall:'밤에는 혼자 움직이시진 않았어요. 모스 50점이라 미끄럼 방지 신발 신고 보조해서 걸으시게 해 주세요.',sleep:'잘 주무셨어요.',o2:'실내 공기로 SpO2 95%예요.'},
+ B:{aspir:'밤사이 흡인된 적은 없었어요. 다만 치매가 있으셔서 급하게 드시려고 할 때가 있어요. 식사 때 침상 머리 올리고 옆에서 보조해 주세요.',meal:'연하곤란식 드시고 저녁은 거의 다 드셨어요. 사레 들린 적은 없었어요.',sleep:'새벽에 한 번 깨셔서 집에 가겠다고 하셨는데 다시 주무셨어요.',o2:'실내 공기로 SpO2 95% 정도예요.'},
+ C:{drain:'흉관 배액은 밤새 맑은 장액성 30mL 정도였고, 기포는 없었어요.',pain:'숨 깊게 쉴 때 조금 아프다고 하셔서 새벽 2시에 진통제 PRN 한 번 들어갔어요.',o2:'실내 공기로 SpO2 96~97%예요.'},
+ D:{drain:'조직검사 부위 드레싱 깨끗하고 출혈 없었어요.',o2:'실내 공기로 SpO2 97%, 숨참 없었어요.',pain:'통증 호소는 없었어요.'},
+ F:{o2:'밤새 SpO2 97% 이상이고 쌕쌕거림도 없었어요.',med:'흡입기는 혼자서 잘 쓰세요.'},
+ G:{nausea:'새벽 4시에 속이 메스껍다고 하셔서 항구토제 PRN 한 번 들어갔어요. 그 뒤로는 좀 나아지셨어요.',meal:'저녁을 거의 못 드셨어요.',sleep:'밤에 잠을 거의 못 주무셨어요.',emo:'밤에 우셨어요. 많이 힘들어하시고 무섭다고 하셨어요. 시간 되실 때 이야기 좀 들어 드리면 좋겠어요.'},
+ I:{o2:'안정 시엔 산소 3리터로 SpO2 94~95%인데, 화장실만 다녀와도 85까지 떨어져요. 산소 줄을 빼고 가시려고 해서 꼭 같이 가 주세요.',fall:'혼자 화장실 가시려고 해요. 산소 줄을 빼고 가시려 해서 이동하실 땐 꼭 동행해 주세요.',sleep:'새벽에 화장실 때문에 두 번 깨셨어요.'},
+ J:{edu:'오늘 11시 퇴원인데 흡입기 두 개 순서를 아직 헷갈려하세요. 퇴원 전에 꼭 다시 보여 드려야 해요.',o2:'실내 공기로 SpO2 90~91%, 목표 범위 안이에요.',family:'아드님이 11시에 차 가지고 오신대요.'},
+ K:{iso:'결핵 의심이라 720호 음압격리실로 받아요. N95 마스크랑 음압 표시등 미리 확인해 주세요.',vs:'응급실에서 열이 37.8도였다고 들었어요.'}
+}};
+function nightAnswer(pid,q){
+  const f=(NQ[SCN.id]||{})[pid]||{};const hit=QTOPIC.filter(([k,re])=>re.test(q)&&f[k]).map(([k])=>f[k]);
+  if(hit.length)return hit[0];
+  const asked=QTOPIC.find(([k,re])=>re.test(q));
+  return asked?`${P[pid].name} 님은 그 부분은 밤사이 따로 이야기할 만한 일이 없었어요. 라운딩 때 한 번 직접 확인해 주세요.`:`음, 그건 제가 밤에 따로 확인하지 못했어요. ${P[pid].name} 님 카덱스를 같이 보면서 확인해 보시겠어요?`;
+}
+
+function qBox(def){return `<div class="stack" style="gap:6px"><label for="q">밤번 간호사에게 질문하기 (인계 중·후 언제든, 횟수 제한 없음)</label>
+  <div class="row"><select id="qP" style="width:auto">${PIDS.map(p=>`<option value="${p}" ${p===def?'selected':''}>${P[p].name}</option>`).join('')}</select><input type="text" id="q" placeholder="예: 밤에 어떠셨어요?" style="flex:1"><button class="btn" data-act="askQ">질문</button></div>
+  <div id="qa" class="small">${QA.map(x=>`<div><b>Q. ${esc(P[x.p].name)}</b> ${esc(x.q)}<br><b>A.</b> ${esc(x.a)}</div>`).join('')}</div></div>`;}
+let QA=[];
+function hvShow(i){
+  HV.i=i;const cur=HANDOVER[i];if(!cur)return;
+  const k=document.querySelector('.grid3 > .stack');if(k){k.innerHTML=`<h3>지금 인계 중인 환자</h3>${kardexHTML(cur.pid)}<p class="small muted">카덱스는 음성에 맞춰 자동으로 넘어가요. 지나간 환자로 돌아갈 수 없어요.</p>`;}
+  const c=$('#caption');if(c)c.innerHTML=HV.caption||!hasVoice()?esc(cur.t):'<span class="muted">🔊 듣는 중… (자막 꺼짐)</span>';
+  const b=$('#hvBar');if(b)b.style.width=((i+1)/HANDOVER.length*100)+'%';
+  const sel=$('#memoPid');if(sel&&!$('#memoText').value)sel.value=cur.pid;const qs=$('#qP');if(qs&&!$('#q').value)qs.value=cur.pid;showSlot(cur.pid);
+}
+async function hvPlay(){
+  S.plays++;HV.playing=true;HV.i=0;render();hvShow(0);
+  if(WS&&KO_VOICE){
+    WS.cancel();
+    const step=i=>{if(!HV.playing)return;if(i>=HANDOVER.length){hvEnd();return;}hvShow(i);
+      const u=new SpeechSynthesisUtterance(HANDOVER[i].t);u.voice=KO_VOICE;u.lang=KO_VOICE.lang;u.rate=1.2;
+      let next=false;const go2=()=>{if(next)return;next=true;clearTimeout(HV.timer);step(i+1);};
+      u.onend=go2;u.onerror=go2;HV.timer=setTimeout(go2,HANDOVER[i].t.length*220+4000);WS.speak(u);};
+    step(0);
+  }else{
+    const step=i=>{if(!HV.playing)return;if(i>=HANDOVER.length){hvEnd();return;}hvShow(i);HV.timer=setTimeout(()=>step(i+1),Math.max(2200,HANDOVER[i].t.length*58));};
+    step(0);
+  }
+}
+function hvEnd(){HV.playing=false;clearTimeout(HV.timer);S.hvDone=true;if(S.step==='handover')render();}
+
+/* ================= 4. 카덱스 재확인 ================= */
+let KSEL=null;
+function vKardex(){
+  return `<div class="grid3">
+   <div class="panel stack"><div class="row" style="justify-content:space-between"><h3>환자 목록</h3>${stepClock('kLeft')}</div><p class="small muted">눌러야 카덱스가 열려요. 5분이 지나면 라운딩으로 넘어가요.</p><div class="plist">${PIDS.map(p=>`<button class="pbtn ${KSEL===p?'on':''}" data-act="kopen" data-v="${p}"><span>${P[p].room} ${P[p].name}</span><span class="small muted">${S.kv[p]?'열람함':''}</span></button>`).join('')}</div></div>
+   <div class="stack">${KSEL?kardexHTML(KSEL):'<div class="panel muted">왼쪽에서 환자를 고르세요.</div>'}
+    <div class="panel">${qBox(KSEL||'A')}</div><div class="row" style="justify-content:flex-end"><button class="btn primary" data-act="go" data-v="round">다음: 첫 라운딩</button></div></div>
+   <div class="panel">${memoPanel(KSEL||'A')}</div></div>`;
+}
+/* ================= 5. 라운딩 ================= */
+let RSEL=null;
+function vRound(){
+  const o=RSEL?OBS[RSEL]:null;const r=RSEL?(S.round[RSEL]||{}):{};
+  return `<div class="grid3">
+   <div class="stack" style="grid-column:span 2"><div class="panel stack"><div class="row" style="justify-content:space-between"><h3>병실 배치도</h3>${stepClock('rLeft')}</div><p class="small muted" style="margin:0">5분이 지나면 업무표 작성으로 넘어가요.</p><div class="ward">${PIDS.map(p=>`<button class="bed ${RSEL===p?'on':''} ${S.round[p]?'seen':''}" data-act="rsel" data-v="${p}"><div class="rm">${P[p].room}</div><b>${P[p].name}</b><div class="small muted">${P[p].sex}/${P[p].age}</div></button>`).join('')}</div></div>
+   ${o?`<div class="panel stack"><div class="row" style="justify-content:space-between"><h3>${khead(RSEL)}</h3><span class="small muted">관찰</span></div>
+     <p style="margin:0">${esc(o.text)}</p>
+     <div class="row">${[['act','즉시 조치'],['memo','메모'],['both','둘 다'],['skip','그냥 넘어가기']].map(([v,l])=>`<button class="chip ${r.d===v?'on':''}" data-act="rdec" data-v="${v}">${l}</button>`).join('')}</div>
+     ${(r.d==='act'||r.d==='both')?`<div class="stack" style="gap:6px">${Object.entries(ACTIONS).map(([c,list])=>`<div><div class="small muted">${c}</div><div class="row">${list.map(a=>`<button class="chip ${(r.a||[]).includes(a)?'on':''}" data-act="racts" data-v="${esc(a)}">${a}</button>`).join('')}</div></div>`).join('')}
+       <div><div class="small muted">기타</div><input type="text" id="rEtc" value="${esc(r.etc||'')}" placeholder="직접 입력 (예: 수액 주입 부위 확인)"></div></div>`:''}
+     ${(r.d==='memo'||r.d==='both')?`<button class="btn sm" data-act="pinObs">관찰 문장을 메모에 고정</button>`:''}
+     <p class="small muted">무엇이 위험한지는 표시하지 않아요. 판단은 근무가 끝난 뒤 리포트에서 확인해요.</p></div>`:'<div class="panel muted">배치도에서 환자를 누르면 관찰 내용이 나와요.</div>'}
+   <div class="row" style="justify-content:flex-end"><button class="btn primary" data-act="go" data-v="sched">다음: 업무표 작성 (8분)</button></div></div>
+   <div class="panel">${memoPanel(RSEL||'A')}</div></div>`;
+}
+/* ================= 6. 업무표 ================= */
+let schedTimer=null,SF={pid:'B',kind:'체위 변경',t:600,who:'act',etc:'',from:null},SKV='B';
+function schedRows(list,live){
+  return `<table class="sched"><tr><th>시간</th><th>업무 (파랑: 나 · 초록: 액팅)</th></tr>${TIMES.map(t=>{
+   const items=list.filter(x=>x.t>=t&&x.t<t+30);
+   return `<tr data-drop="${t}"><td class="t">${hm(t)}</td><td>${items.map(x=>`<span class="task ${x.who} ${x.auto?'auto':''} ${live&&x.st==='done'?'done':''} ${live&&x.st==='held'?'held':''}">${x.t%30?hm(x.t)+' ':''}${esc(x.label)}${x.auto||(live&&!(x.st==='wait'||x.st==='held'))?'':`<button data-act="editTask" data-id="${x.id}" title="수정">✎</button><button data-act="delTask" data-id="${x.id}" title="삭제">✕</button>`}</span>`).join('')||'<span class="small muted">–</span>'}</td></tr>`}).join('')}</table>`;
+}
+function taskForm(){
+  return `<div class="stack" style="gap:6px" id="taskForm"><h3>${SF.editId?'업무 수정':'업무 추가'}</h3>${SF.from?'<span class="tag">인계장 메모에서 가져옴</span>':''}
+  <div class="row"><select id="sfP" style="flex:1">${PIDS.map(p=>`<option value="${p}" ${SF.pid===p?'selected':''}>${pl(p)}</option>`).join('')}</select>
+  <select id="sfK" style="flex:1">${Object.keys(KINDS).map(k=>`<option ${SF.kind===k?'selected':''}>${k}</option>`).join('')}</select></div>
+  <input type="text" id="sfE" value="${esc(SF.etc)}" placeholder="${SF.kind==='기타'?'무엇을 할지 적으세요 (필수)':'내용 (선택) · 인계장 메모를 붙여 넣어도 돼요'}">
+  <div class="row"><select id="sfT" style="flex:1">${(()=>{const live=S.step==='shift'&&R&&!R.over;const min=live?R.m:0;if(live&&SF.t<min)SF.t=TIMES.find(t=>t>=min)??TIMES[TIMES.length-1];
+     return TIMES.map(t=>`<option value="${t}" ${SF.t===t?'selected':''} ${t<min?'disabled':''}>${hm(t)}${t<min?' (지남)':''}</option>`).join('');})()}</select>
+  <span class="row">${['me','act'].map(w=>`<button class="chip ${SF.who===w?'on':''}" data-act="sfWho" data-v="${w}">${w==='me'?'나':'액팅'}</button>`).join('')}</span></div>
+  <div class="row"><button class="btn primary" data-act="addTask" style="flex:1">${SF.editId?'수정 저장':'업무표에 넣기'}</button>${SF.editId?'<button class="btn" data-act="cancelEdit">취소</button>':''}</div><div class="small" id="sfMsg" style="color:var(--crit)"></div></div>`;
+}
+function vSched(){
+  const low=S.schedLeft<=60;
+  return `<div class="grid3">
+   <div class="panel stack">${memoPanel('A')}<p class="small muted">메모의 [업무표로]를 누르면 내용이 업무 추가 양식에 그대로 옮겨져요. 메모를 업무표의 시간 칸으로 끌어다 놓으면 바로 들어가요.</p></div>
+   <div class="panel stack"><div class="row" style="justify-content:space-between"><h3>업무표</h3><span class="timer ${low?'low':''}" id="stimer">${hm(Math.floor(S.schedLeft/60)).slice(3)}:${String(S.schedLeft%60).padStart(2,'0')}</span></div>
+    <p class="small muted">정규 투약은 나, V/S·BST는 액팅으로 자동 배정돼 있어요. 시간이 끝나면 작성한 데까지만 가지고 근무가 시작돼요.</p>
+    <div class="tablewrap" id="schedTable">${schedRows(allTasks(S.schedule),false)}</div>
+    <div class="row" style="justify-content:flex-end"><button class="btn primary" data-act="schedDone">작성 완료, 근무 시작</button></div></div>
+   <div class="stack"><div class="panel">${taskForm()}</div>
+    <div class="panel stack"><div class="row" style="justify-content:space-between"><h3>카덱스</h3><span class="small muted">여는 동안에도 시간이 흘러요</span></div>
+    <select id="skv">${PIDS.map(p=>`<option value="${p}" ${SKV===p?'selected':''}>${pl(p)}</option>`).join('')}</select>${kardexHTML(SKV)}</div></div></div>`;
+}
+function allTasks(user){return AUTO_TASKS.map((a,i)=>Object.assign({id:'a'+i,auto:true},a)).concat(user).sort((a,b)=>a.t-b.t);}
+/* 4단계(카덱스 재확인)·5단계(라운딩) 각 5분 제한 */
+let stepTimer=null;
+function stepClock(key){const v=S[key];return `<span class="timer ${v<=60?'low':''}" id="stepTimer">${String(Math.floor(v/60)).padStart(2,'0')}:${String(v%60).padStart(2,'0')}</span>`;}
+function runStepTimer(step,key,next){
+  if(S.mode==='rewind')return;if(stepTimer&&stepTimer.step===step)return;if(stepTimer)clearInterval(stepTimer.id);
+  const id=setInterval(()=>{if(S.step!==step){clearInterval(id);stepTimer=null;return;}S[key]--;const el=$('#stepTimer');if(el){el.textContent=`${String(Math.floor(S[key]/60)).padStart(2,'0')}:${String(S[key]%60).padStart(2,'0')}`;el.classList.toggle('low',S[key]<=60);}
+    if(S[key]<=0){clearInterval(id);stepTimer=null;go(next);}},1000);stepTimer={id,step};
+}
+after.kardex=()=>runStepTimer('kardex','kLeft','round');
+after.round=()=>runStepTimer('round','rLeft','sched');
+after.sched=()=>{
+  if(S.mode==='rewind'){const el=$('#stimer');if(el)el.textContent='되감기 · 시간 제한 없음';return;}
+  if(schedTimer)return;
+  schedTimer=setInterval(()=>{
+    if(S.step!=='sched'){clearInterval(schedTimer);schedTimer=null;return;}
+    S.schedLeft--;S.schedUsed++;
+    const el=$('#stimer');if(el){el.textContent=`${String(Math.floor(S.schedLeft/60)).padStart(2,'0')}:${String(S.schedLeft%60).padStart(2,'0')}`;el.classList.toggle('low',S.schedLeft<=60);}
+    if(S.schedLeft<=0){clearInterval(schedTimer);schedTimer=null;schedDone();}
+  },1000);
+};
+function schedDone(){clearInterval(schedTimer);schedTimer=null;
+  if(S.mode==='rewind'){startRun(true);return;}
+  go('shift');startRun(false);}
+
+/* ================= 7. 근무 시뮬레이션 엔진 ================= */
+/* 1분 = 1틱. 수행자가 비어 있을 때만 자동 수행, 30분 넘게 못 하면 '지연(보류)'으로 기록 */
+let R=null,RT=null;
+const SPEED={normal:333,fast:60};
+function newRun(){
+  const tasks=allTasks(S.schedule).map(t=>Object.assign({},t,{st:'wait'}));
+  return {m:480,tasks,me:{busy:0,loc:'간호사실',doing:''},act:{busy:0,loc:'간호사실',doing:''},sup:0,logs:[],choices:{},rank:null,rankOpts:null,flags:{},ev:{},emerg:null,eduStart:null,seqDone:{},paused:false,over:false};
+}
+function where(a){return a.busy>R.m?a.loc:'병동'}
+function log(text,type,choice){R.logs.push({t:R.m,text,type:type||'task',choice:choice||'',me:where(R.me),act:where(R.act),sup:R.sup?`${SCN.SUP_LOC||'현장'} ${R.sup}명`:'–'});if(S.step==='shift')drawShift();}
+function occupy(a,dur,loc,doing){const A=R[a];A.busy=R.m+dur;A.loc=loc;A.doing=doing;}
+function eRoundOK(){const r=S.round.E;return !!(r&&(r.d==='act'||r.d==='both')&&(r.a||[]).some(x=>x==='호출벨 위치 확인'||x==='혼자 일어나지 말고 호출하도록 설명'));}
+function tick(){
+  if(R.paused||R.over)return;
+  // 카드
+  for(const c of CARDS){if(!R.choices[c.id]&&!R.flags['open_'+c.id]&&R.m>=c.at(R)){R.flags['open_'+c.id]=true;openCard(c);return;}}
+  // 사건
+  SCN.events();
+  // 업무 수행
+  for(const t of R.tasks){
+    if(t.st!=='wait'||t.t>R.m)continue;
+    const A=R[t.who];
+    if(A.busy<=R.m){
+      t.st='done';t.start=R.m;occupy(t.who,t.dur,t.pid==='*'?'병동 전체':`${P[t.pid].name} 병실`,t.label);
+      if(t.tag==='EDU'){R.eduStart=R.eduStart??R.m;}
+      SCN.onStart&&SCN.onStart(t);
+      log(`${t.who==='me'?'나':'액팅'}: ${t.label} 수행`,'task');
+    }else if(R.m-t.t>=30){
+      t.st='held';log(`${t.label} 지연 (${t.who==='me'?'나':'액팅'}가 다른 업무 중)`,'dl');
+    }
+  }
+  if(R.m>=900){endRun();return;}
+  R.m++;
+  if(S.step==='shift')drawClock();
+}
+function startRun(rewind){
+  R=newRun();R.rewind=!!rewind;R.preset=rewind?S.presetChoices:null;
+  SCN.ROUND_KEYS.forEach(p=>{const x=S.round[p]||{};const dl={act:'즉시 조치',memo:'메모',both:'즉시 조치+메모',skip:'그냥 넘어감'}[x.d]||'보지 않음';R.logs.push({t:450,text:`라운딩 ${P[p].name}: ${OBS[p].text.slice(0,34)}…`,type:'ch',choice:`${P[p].name}: ${dl}${(x.a||[]).length?' ('+x.a.join(', ')+')':''}`,me:`${P[p].name} 병실`,act:'병동',sup:'–'});});
+  if(rewind){S.step='shift';render();}
+  loop();
+}
+function loop(){clearInterval(RT);RT=setInterval(tick,R.preset&&!R.livePart?SPEED.fast:SPEED.normal);}
+function endRun(){
+  R.over=true;clearInterval(RT);log('15:00 근무 종료','ch');
+  const res={choices:Object.assign({},R.choices),rank:R.rank,rankOpts:R.rankOpts,ev:Object.assign({},R.ev),logs:R.logs.slice(),flags:Object.assign({},R.flags),eduStart:R.eduStart,tasks:R.tasks,round:JSON.parse(JSON.stringify(S.round)),schedule:S.schedule.map(x=>Object.assign({},x))};
+  if(R.rewind){S.run2=res;showRewindResult();}
+  else{S.run1=res;openHandoff();}
+}
+/* ---- 선택 카드 ---- */
+const S1_CARDS=[
+ {id:'c0940',at:()=>580,type:'one',title:'09:40 · 이미경 님',sit:'"딸이 1시쯤 온대요. 주사는 같이 배우고 싶어요."',
+  opts:[['1','교육 시간 약속하기 (13시 업무표에 배치)'],['2','지금 이미경 혼자 먼저 교육하기'],['3','나중에 정하기']],
+  apply(c){if(c==='1'&&!R.tasks.some(t=>t.tag==='EDU'))R.tasks.push({id:'edu',t:780,pid:'C',label:'이미경 자가주사 교육 (딸과 함께)',kind:'교육',who:'me',dur:30,st:'wait',tag:'EDU'});
+   if(c==='2'){occupy('me',30,'이미경 병실','이미경 교육(혼자)');log('이미경 혼자 자가주사 교육 시작 (딸 없이)','task');}}},
+ {id:'c1100',at:()=>660,type:'one',title:'11:00 · 최병철 님 호출',sit:'"숨이… 숨이 차요." SpO2 84%, 호흡수 32회/분, 보조호흡근 사용, 말을 끊어서 함.',
+  opts:[['1','의사 보고·신속대응팀 호출 + 응급 대응 시작'],['2','처방 범위에서 산소를 올리고 경과 관찰'],['3','V/S 다시 재고 판단']],
+  apply(c){const d=c==='1'?0:c==='2'?10:5;
+   if(d){occupy('me',d,'최병철 병실','최병철 관찰');log(c==='2'?'산소 증량 후 관찰':'V/S 재측정','task');}
+   R.emerg={start:660+d};R.flags.emergDelay=d;
+   const st=()=>{occupy('me',750-R.m,'최병철 병실','최병철 응급 대응');occupy('act',750-R.m,'최병철 병실','최병철 응급 대응');log(d?`SpO2 82%, 의식 처짐 → 의사 보고·신속대응팀 호출 (${d}분 늦음)`:'의사 보고·신속대응팀 호출, 응급 대응 시작 (나 + 액팅)','ev');};
+   if(!d)st();else R.flags.emergStart=st;}},
+ {id:'c1115',at:()=>675,type:'one',title:'11:15 · 다른 팀 간호사 2명 도착',sit:'최병철 님 병실에 간호사가 4명이 됐어요. 12시에 이미경 BST·식전 인슐린, 박만수 체위 변경이 예정돼 있어요.',
+  opts:[['1','모두 응급 계속'],['2','액팅을 보내 12시 박만수 체위 변경, 이미경 BST 하게 하기'],['3','②에 이미경 식전 인슐린까지 액팅에게 맡기기 (반응 확인은 내가)']],
+  apply(c){R.sup=2;log('다른 팀 간호사 2명 도착','task');
+   if(c!=='1'){R.act.busy=R.m;R.act.loc='병동';log('액팅간호사를 우리 팀 환자에게 돌려보냄','ch');
+    let b=R.tasks.find(t=>t.pid==='B'&&t.kind==='체위 변경'&&t.t>=690&&t.t<=750&&t.st==='wait');
+    if(b)b.who='act';else R.tasks.push({id:'b12',t:720,pid:'B',label:'박만수 체위 변경',kind:'체위 변경',who:'act',dur:10,st:'wait'});
+    if(c==='3'){const ins=R.tasks.find(t=>t.tag==='C_INS');ins.who='act';ins.label='이미경 식전 인슐린 (위임)';R.flags.delegIns=true;}}}},
+ {id:'c1230',at:()=>750,type:'rank',title:'12:30 · 응급 종료',sit:'최병철 님은 신속대응팀과 함께 안정됐어요. 지금부터 할 일 4가지의 순서를 정하세요.',
+  build(){
+   const o=[];
+   o.push({k:'E',label:R.ev.E?'정순자 님 상태 확인 (휘청 후 손상 사정)':'정순자 님 낙상 위험 확인',g:2,dur:5,who:'나'});
+   const bDone=R.flags.B12start!=null;
+   o.push(bDone?{k:'B14',label:'박만수 님 14시 체위 변경 준비 (액팅에게 요청)',g:3,dur:2,who:'액팅'}:{k:'B',label:'박만수 님 체위 변경 (12시분 지연)',g:2,dur:10,who:'액팅 가능'});
+   if(R.flags.Cins!=null)o.push({k:'CR',label:'이미경 님 인슐린 투여 후 반응·혈당 확인',g:3,dur:5,who:'나'});
+   else if(R.flags.Cbst!=null)o.push({k:'CI',label:'이미경 님 식전 인슐린 (식사 보류 중)',g:2,dur:10,who:'나'});
+   else o.push({k:'CF',label:'이미경 님 혈당·식전 인슐린',g:2,dur:15,who:'BST 액팅 · 인슐린 나'});
+   o.push({k:'R',label:'응급 기록 정리',g:4,dur:20,who:'나'});
+   return o;}},
+ {id:'c1300',at:()=>780,type:'one',title:'13:00 · 이미경 님 딸 도착',sit:'"엄마 주사 배우러 왔어요. 3시에 퇴원이죠?"',
+  opts:[['1','바로 교육하기'],['2','기록을 마저 하고 교육하기'],['3','퇴원 직전에 교육하기']],
+  apply(c){R.tasks.filter(t=>t.tag==='EDU'&&t.st==='wait').forEach(t=>t.st='cancel');
+   const recQ=R.tasks.find(t=>t.rk==='R'&&t.st==='wait');if(c==='1'&&recQ)recQ.st='cancel';const q=R.tasks.filter(t=>t.rk&&t.st==='wait').map(t=>Math.max(t.t,R.m)+t.dur);const free=Math.max(R.m,R.me.busy,...q);const recDone=R.flags.recDone!=null;const s=c==='1'?free:c==='2'?(recDone?free+20:free):870;
+   if(c==='2'&&recDone)R.tasks.push({id:'rec2',t:free,pid:'*',label:'기록 정리',kind:'기록',who:'me',dur:20,st:'wait'});
+   R.tasks.push({id:'edu2',t:s,pid:'C',label:'이미경 자가주사 교육 (딸과 함께)',kind:'교육',who:'me',dur:30,st:'wait',tag:'EDU'});
+   if(c==='1'&&recQ)R.tasks.push({id:'rec3',t:s+30,pid:'*',label:'응급 기록 정리 (교육 후)',kind:'기록',who:'me',dur:20,st:'wait'});}}
+];
+const S1_TIMEOUT={c0940:'3',c1100:'3',c1115:'1',c1300:'2'};
+let CARD=null;
+function openCard(c){
+  R.paused=true;clearInterval(RT);
+  if(c.type==='rank'){R.rankOpts=c.build();}
+  const pre=R.preset?R.preset[c.id]:undefined;
+  if(pre!==undefined){ // 되감기 전 지점은 이전 선택 그대로
+    setTimeout(()=>resolveCard(c,pre,true),50);return;}
+  if(R.preset&&!R.livePart){R.livePart=true;}
+  CARD={c,sel:c.type==='rank'?[]:null,left:c.type==='rank'?20:15};
+  drawCard();
+  CARD.timer=setInterval(()=>{CARD.left--;const el=$('#cardLeft');if(el){el.textContent=CARD.left+'초';$('#cardBar').style.width=(CARD.left/(c.type==='rank'?20:15)*100)+'%';}
+   if(CARD.left<=0){clearInterval(CARD.timer);
+    if(c.type==='rank'){const rest=R.rankOpts.map(o=>o.k).filter(k=>!CARD.sel.includes(k));resolveCard(c,CARD.sel.concat(rest));}
+    else resolveCard(c,CARD.sel||SCN.TIMEOUT[c.id],false,!CARD.sel);}},1000);
+}
+function drawCard(){
+  const {c,sel}=CARD;const total=c.type==='rank'?20:15;
+  const opts=c.type==='rank'?R.rankOpts.map(o=>[o.k,o.label]):c.opts;
+  $('#layer').innerHTML=`<div class="overlay"><div class="card" role="dialog" aria-label="${esc(c.title)}">
+   <div class="row" style="justify-content:space-between"><h3>${c.title}</h3><span class="mono" id="cardLeft">${CARD.left}초</span></div>
+   <div class="bar"><i id="cardBar" style="width:${CARD.left/total*100}%"></i></div>
+   <p style="margin:0">${esc(c.sitFn?c.sitFn():c.sit)}</p>
+   ${c.type==='rank'?'<p class="small muted" style="margin:0">누르는 순서대로 1~4순위가 붙어요. 이미 고른 보기를 다시 누르면 그 선택만 취소돼요.</p>':''}
+   <div class="stack" style="gap:8px">${opts.map(([k,l],i)=>{
+     const r=c.type==='rank'?sel.indexOf(k)+1:0;const on=c.type==='rank'?r>0:sel===k;
+     return `<button class="opt ${on?'on':''}" data-act="${c.type==='rank'?'rankPick':'onePick'}" data-v="${k}"><span class="rk">${c.type==='rank'?(r||''):['①','②','③','④'][i]}</span><span>${esc(l)}</span></button>`}).join('')}</div>
+   ${c.type==='rank'?`<button class="btn primary" data-act="rankOK" ${sel.length===opts.length?'':'disabled'}>확정</button>`:''}
+  </div></div>`;
+}
+function resolveCard(c,choice,preset,timeout){
+  if(CARD&&CARD.timer)clearInterval(CARD.timer);CARD=null;$('#layer').innerHTML='';
+  R.choices[c.id]=choice;
+  if(c.type==='rank'){applyRank(choice);}
+  else{const label=c.opts.find(o=>o[0]===choice)[1];log(`${c.title.split(' · ')[0]} 선택: ${label}${timeout?' (시간 초과)':''}`,'ch',label);c.apply(choice);}
+  if(c.id==='c1100'&&R.flags.emergStart){const st=R.flags.emergStart;delete R.flags.emergStart;R.flags.waitEmerg=R.emerg.start;R.flags.stFn=st;}
+  R.paused=false;loop();
+}
+/* 응급 시작이 늦어지는 경우 처리 */
+const _tick=tick;tick=function(){if(R&&R.flags.waitEmerg!=null&&R.m>=R.flags.waitEmerg&&!R.paused){const f=R.flags.stFn;R.flags.waitEmerg=null;R.flags.stFn=null;f&&f();}_tick();};
+function applyRank(order){
+  R.rank=order;
+  const lbl=order.map((k,i)=>`${i+1}.${R.rankOpts.find(o=>o.k===k).label.split(' (')[0]}`).join('  ');
+  log(`${hm(R.m)} 우선순위: `+lbl,'ch',lbl);
+  SCN.rankResolve&&SCN.rankResolve();
+  let m=Math.max(R.m,R.me.busy);
+  order.forEach(k=>{const o=R.rankOpts.find(x=>x.k===k);
+   const tk={id:'r'+k,t:m,pid:k[0]==='R'?'*':k[0],label:o.label.split(' (')[0],kind:k,who:'me',dur:o.dur,st:'wait',rk:k};
+   R.tasks.push(tk);m+=o.dur;});
+  R.flags.rankSeq=true;
+}
+/* 순위 업무 수행 시 부가 처리 */
+const _tick2=tick;tick=function(){
+  if(R&&!R.paused&&!R.over){for(const t of R.tasks){if(t.rk&&t.st==='done'&&!t.post){t.post=1;
+    SCN.post&&SCN.post(t);
+    if(t.rk==='R')R.flags.recDone=t.start;}}}
+  _tick2();};
+
+/* ---- 근무 화면 ---- */
+function vShift(){
+  return `<div class="grid3">
+   <div class="stack"><div class="panel stack"><div class="small muted">${R&&R.rewind?'되감기 재실행':'낮번 근무'} · 1시간 ≈ 20초</div><div class="clock" id="clock">${hm(R?R.m:480)}</div><div class="bar"><i id="dayBar"></i></div></div>
+    <div class="actor" id="aMe"></div><div class="actor" id="aAct"></div>
+    <p class="small muted">근무 중에는 평가와 힌트가 없어요.</p></div>
+   <div class="panel stack"><h3>근무 기록</h3><div class="log" id="log"></div></div>
+   <div class="panel stack"><h3>업무표</h3><p class="small muted">근무 중에도 고칠 수 있어요. 고치는 동안에도 시간은 흘러가요.</p>
+    <div class="tablewrap" id="liveSched" style="max-height:320px;overflow:auto"></div>${taskForm()}</div></div>`;
+}
+after.shift=()=>drawShift();
+function lockPast(){const sel=$('#sfT');if(!sel||!R)return;let moved=false;[...sel.options].forEach(o=>{const past=+o.value<R.m;if(past&&!o.disabled){o.disabled=true;o.textContent=hm(+o.value)+' (지남)';}});
+  if(sel.selectedOptions[0]&&sel.selectedOptions[0].disabled){const nx=[...sel.options].find(o=>!o.disabled);if(nx){sel.value=nx.value;SF.t=+nx.value;}}}
+function drawClock(){
+  const c=$('#clock');if(!c)return;lockPast();c.textContent=hm(R.m);$('#dayBar').style.width=((R.m-480)/420*100)+'%';
+  const a=(id,n,A)=>{const el=$(id);if(el)el.innerHTML=`<b>${n}</b><div class="small">${A.busy>R.m?`${esc(A.doing)} · ${esc(A.loc)} <span class="muted mono">~${hm(A.busy)}</span>`:'<span class="muted">대기 · 병동</span>'}</div>`;};
+  a('#aMe',`나 (${esc(S.name||'담당')})`,R.me);a('#aAct','액팅간호사',R.act);
+}
+function drawShift(){
+  if(!R||!$('#log'))return;drawClock();
+  const lg=$('#log');lg.innerHTML=R.logs.map(l=>`<div class="${l.type==='ev'?'ev':l.type==='ch'?'ch':l.type==='dl'?'dl':''}"><span class="mono muted">${hm(l.t)}</span> ${esc(l.text)}</div>`).join('');lg.scrollTop=lg.scrollHeight;
+  const ls=$('#liveSched');if(ls){const k=ls.scrollTop;ls.innerHTML=schedRows(R.tasks.filter(t=>t.st!=='cancel'&&t.st!=='resolved'&&!t.rk&&t.t<=870).map(t=>Object.assign({},t,{auto:t.auto||!String(t.id).startsWith('u')})),true);ls.scrollTop=k;}
+}
+
+/* ================= 근무 종료: 인계 ================= */
+function openHandoff(){
+  const items=SCN.HANDOFF;
+  S.handoff={items,sel:[]};
+  $('#layer').innerHTML=`<div class="overlay"><div class="card"><h3>15:00 · 다음 근무자에게 인계</h3><p class="small muted" style="margin:0">오늘 못 했거나 이어서 봐야 할 간호를 골라 인계에 넣으세요.</p>
+  <div class="stack" style="gap:6px">${items.map((it,i)=>`<label class="row" style="color:var(--ink);font-size:15px"><input type="checkbox" data-hi="${i}"> ${it[0]}</label>`).join('')}</div>
+  <button class="btn primary" data-act="handoffOK">인계 완료, 근무 돌아보기</button></div></div>`;
+}
+function omissions(run){return SCN.omissions(run);}
+/* 끝내 못 한 업무: 같은 환자·같은 업무는 한 건으로 묶음 */
+function unfinished(run){
+  const g={};(run.tasks||[]).filter(t=>!t.rk&&(t.st==='held'||(t.st==='wait'&&t.t<900))).forEach(t=>{const k=t.pid+'|'+t.kind+'|'+(t.kind==='기타'?t.label:'');(g[k]=g[k]||[]).push(t);});
+  return Object.entries(g).map(([k,l])=>({k:'H'+k,t:l[0].t,text:`${l[0].label}${l.length>1?` (${l.map(x=>hm(x.t)).join('·')} ${l.length}회)`:''} ${l.some(x=>x.st==='held')?'(다른 업무에 밀려 끝내 못 함)':'(시간 안에 못 함)'}`}));
+}
+function s1Omissions(run){
+  const o=[];
+  if(run.ev.E)o.push({k:'E',text:'정순자 님 낙상 위험 확인 누락 → 12:10 혼자 일어나다 휘청',t:730,sitT:730,chT:675});
+  if(run.ev.B)o.push({k:'B',text:'박만수 님 12시 체위 변경 지연 → 14:00 천골 부위 발적 2×2cm',t:840,sitT:720,chT:675});
+  if(run.flags.CinsLate>=45)o.push({k:'CI',text:`이미경 님 식전 인슐린 ${run.flags.CinsLate}분 지연 → 점심 식사 보류`,t:720+run.flags.CinsLate,sitT:720,chT:750});
+  if(run.ev.C)o.push({k:'C',text:'이미경 님 퇴원교육 지연 → 14:30 딸 "주사는 언제 배워요?"',t:870,sitT:780,chT:780});
+  o.forEach(x=>x.cat='사건');
+  // 라운딩에서 놓친 조치
+  const r=run.round||{};const acted=(p,need)=>{const x=r[p]||{};return (x.d==='act'||x.d==='both')&&need.some(n=>(x.a||[]).includes(n));};
+  if(!acted('A',OBS.A.need))o.push({k:'RA',cat:'라운딩',text:'김영호 님 캐뉼라 빠진 것을 다시 끼우지 않음 → SpO2 89%로 방치',t:450,sitT:450,chT:450});
+  if(!acted('B',OBS.B.need))o.push({k:'RB',cat:'라운딩',text:'박만수 님 침상 머리 15도 그대로 둠 → 흡인 위험 지속',t:450,sitT:450,chT:450});
+  if(!run.ev.E&&!acted('E',OBS.E.need))o.push({k:'RE',cat:'라운딩',text:'정순자 님 호출벨 위치·혼자 일어나지 말라는 설명을 하지 않음 → 낙상 위험 지속',t:450,sitT:450,chT:450});
+  const d=r.D||{};if(!(d.d==='memo'||d.d==='both'||(d.a||[]).some(x=>/주치의|EDBC/.test(x))))o.push({k:'RD',cat:'라운딩',text:'최병철 님 가래·숨참(악화 전조)을 메모·조치하지 않음 → 11:00 급성 악화',t:450,sitT:450,chT:450});
+  // 업무표에 없던 체위 변경 (q2h)
+  [480,600].forEach(h=>{const done=(run.tasks||[]).some(t=>t.pid==='B'&&(t.kind==='체위 변경'||t.rk==='B')&&t.st==='done'&&t.start>=h-30&&t.start<=h+60);
+    if(!done)o.push({k:'B'+h,cat:'업무표',text:`박만수 님 ${h/60}시 체위 변경 누락 (업무표에 없음)`,t:h,sitT:h,chT:h});});
+  if(!(run.tasks||[]).some(t=>t.pid==='E'&&(t.kind==='낙상 위험 확인'||t.rk==='E')&&t.st==='done'))o.push({k:'NE',cat:'업무표',text:'정순자 님 낙상 위험 확인을 근무 중 한 번도 하지 않음',t:480,sitT:730,chT:480});
+  // 끝내 못 한 업무
+  unfinished(run).forEach(u=>o.push({k:u.k,cat:'업무표',text:u.text,t:u.t,sitT:u.t,chT:u.t}));
+  if(run.eduStart==null&&!run.ev.C)o.push({k:'NC',cat:'업무표',text:'이미경 님 퇴원 전 자가주사 교육을 하지 못함',t:870,sitT:780,chT:780});
+  const META={E:['라운딩·환자 사정, 업무 배분',1],RA:['라운딩·환자 사정',2],RD:['환자 사정',3],RE:['라운딩·환자 사정',4],RB:['라운딩·환자 사정',5],B:['업무 계획 및 배분',6],CI:['우선순위 판단',7],NE:['업무 계획',8],B480:['인계 듣기·메모, 업무 계획',9],B600:['인계 듣기·메모, 업무 계획',9],C:['업무 계획',10],NC:['업무 계획',10]};
+  o.forEach(x=>{const m=META[x.k]||['업무 계획 및 배분',11];x.comp=m[0];x.safe=m[1];});
+  return o.sort((a,b)=>a.safe-b.safe||a.t-b.t);
+}
+
+/* ================= 8. 원인 대화 ================= */
+const CHAT_RULES=`너는 신규간호사의 업무 수행 과정을 분석하고 임상적 판단 및 업무 역량 향상을 돕는 간호 교육 AI이다.
+사용자의 업무 수행 결과를 바탕으로 단순히 정답과 오답을 알려주는 것이 아니라, 사용자가 자신의 업무 누락 원인과 개선점을 스스로 발견할 수 있도록 성찰 질문을 생성한다.
+
+[질문 생성 원칙]
+- 실제로 발생한 업무 누락, 판단 오류, 기록 부족, 위임 실패 등을 근거로 질문한다. 근거는 [빠진 간호]와 [근무 타임라인]에 있는 것만 쓴다.
+- 우선순위 판단, 인계 듣기·메모, 업무 계획 및 배분, 환자 사정, 라운딩, 기록 등 역량별로 구분하여 분석한다. 각 누락에 붙은 역량을 참고한다.
+- [잘한 점]에 있는 업무는 지적하지 않는다. 필요하면 짧게 인정해 준다.
+- 잘못된 행동 자체보다 해당 행동이 발생한 원인과 개선 방법에 초점을 맞춘다.
+- 정답을 바로 알려주기보다 사용자가 스스로 생각할 수 있는 개방형 질문을 우선한다. 우선순위 등급(P1~P4)이나 "정답은 ~"은 이 단계에서 공개하지 않는다.
+- 한 번에 질문은 하나만 한다. 가장 개선이 필요한 부분부터 다룬다.
+- 환자 안전과 직접적으로 관련된 누락을 다른 업무상의 미흡함보다 먼저 다룬다. [빠진 간호]는 안전 우선순위 순서로 정렬되어 있다.
+- 실제로 발생하지 않은 실수나 누락을 임의로 만들어 질문하지 않는다.
+
+[질문 생성 방식] 누락 하나마다 아래 순서로, 한 메시지에 한 단계씩 진행한다.
+① 발견된 문제: 사용자가 놓친 업무나 부족했던 역량을 시간·환자·결과와 함께 구체적으로 제시한다. (예: "타임라인 12:10 줄을 보면…")
+② 성찰 질문: 그 상황에서 왜 그렇게 행동했는지, 어떤 정보를 놓쳤는지 묻는다. (①과 같은 메시지에서 이어서 물어도 된다)
+③ 개선 질문: 사용자의 답을 받아 원인을 함께 정리한 뒤, 다음 근무에서 같은 상황이 오면 어떻게 행동할지 묻는다. 사용자가 자기 탓만 하면 그때 병동 상황(누가 어디에 있었는지)을, 상황 탓만 하면 그때 할 수 있었던 다른 선택을 타임라인에서 함께 보게 한 뒤 묻는다.
+④ 실천 목표: 다음 근무에서 실천할 구체적인 행동 한 가지(언제·누가·무엇을)를 사용자가 직접 정하게 유도한다. 모호하면 한 번만 구체화를 부탁한다. 목표가 정해지면 actions에 짧게 정리한다.
+한 누락의 ④가 끝나면 covered에 그 누락의 키를 넣고, 아직 다루지 않은 다음 누락으로 넘어간다. 모든 누락은 확인해야 다음 단계로 갈 수 있다. 사용자가 읽고 확인한 누락은 짧게 짚고 넘어가도 된다. 모두 다뤘으면 "원인 정리"로 넘어가자고 안내한다. 사용자가 특정 누락을 보고 싶다고 하면 그 누락의 ①②부터 시작한다.
+
+[말투]
+- 비난하거나 평가하는 말투가 아닌 교육적이고 객관적인 말투(해요체). 사용자의 직전 답을 구체적으로 받아서 이어 간다. 같은 표현을 반복하지 않는다.
+- 사용자가 질문하면 그 질문에 먼저 답한다.
+- 2~5문장, 목록·제목·이모지 없이 채팅 말투로. 근거는 "기록"이 아니라 화면 왼쪽 "타임라인 HH:MM 줄"로 짚는다.
+- 첫 메시지는 "근무 수고했어요"로 시작하고, 빠진 간호가 여러 건이면 몇 건인지와 그중 환자 안전과 가장 직결된 것부터 보자고 말한 뒤 그 누락의 ①②로 들어간다.
+- 사용자가 "모르겠어요"라고 하면 buttons에 짧은 보기 2~3개를 준다.
+
+출력 형식: 먼저 사용자에게 보낼 답만 쓰고, 다음 줄에 ### 를 쓰고, 그 뒤에 JSON 하나:
+{"stage":"①②|③|④|다음","focus":"지금 다루는 누락 한 줄","covered":["④까지 마친 누락의 키"],"buttons":[],"actions":["사용자가 정한 실천 목표"],"orgFactors":["바꿀 수 없던 요인"],"balance":"personal|org|both|none","done":false}`;
+function wellDone(run){
+  const w=[];const r=run.round||{};const acted=(p,need)=>{const x=r[p]||{};return (x.d==='act'||x.d==='both')&&need.some(n=>(x.a||[]).includes(n));};
+  SCN.ROUND_KEYS.filter(p=>OBS[p].need.length).forEach(p=>{if(acted(p,OBS[p].need))w.push(`라운딩: ${P[p].name} 님 ${OBS[p].need[0]}`);});
+  SCN.ROUND_KEYS.filter(p=>!OBS[p].need.length).forEach(p=>{const x=r[p]||{};if(x.d==='memo'||x.d==='both'||(x.a||[]).some(a=>/주치의|EDBC/.test(a)))w.push(`라운딩: ${P[p].name} 님 관찰 메모`);});
+  SCN.ORDER.filter(id=>id!==SCN.RANK_ID).forEach(id=>{const ch=run.choices[id];const e=SCN.EVAL[id]&&SCN.EVAL[id][ch];if(e&&e[0]==='ok')w.push(`${CARDS.find(c=>c.id===id).title.split(' · ')[0]} 선택 적절: ${CARDS.find(c=>c.id===id).opts.find(o=>o[0]===ch)[1]}`);});
+  if(run.rank&&judgeRank(run)[0]==='ok')w.push('12:30 우선순위 순서 적절');
+  INFO.forEach(i=>{if(S.memos.some(m=>m.pid===i.pid&&i.re.test(m.text)))w.push(`인계 메모: ${i.k}`);});
+  return w;
+}
+function tlText(run){return run.logs.filter(l=>l.type!=='task'||/응급|도착|돌려|동행|입원|PRN|교육/.test(l.text)).map(l=>`${hm(l.t)} | ${l.text} | 나:${l.me} | 액팅:${l.act} | 지원:${l.sup}`).join('\n');}
+function vChat(){
+  const run=S.run1;const om=omissions(run);
+  const rows=run.logs.filter(l=>l.type!=='task'||/응급|도착|돌려|체위|인슐린|BST|교육|동행|입원|PRN|항구토|흡입기|처방|대화/.test(l.text));
+  return `<div class="grid2">
+   <div class="panel stack"><h3>근무 타임라인</h3><p class="small muted" style="margin:0">근거는 여기서 찾아요. 시간·사건·내 선택·누가 어디에 있었는지가 기록돼 있어요.</p>
+    <div class="tablewrap" style="max-height:520px;overflow:auto"><table class="tl"><tr><th>시간</th><th>사건</th><th>내 선택</th><th>나</th><th>액팅</th><th>지원</th></tr>
+    ${rows.map(l=>`<tr data-t="${hm(l.t)}" class="${S.hl&&S.hl.includes(hm(l.t))?'hl':''}"><td class="mono">${hm(l.t)}</td><td>${esc(l.choice?'':l.text)}</td><td>${esc(l.choice||'')}</td><td>${esc(l.me)}</td><td>${esc(l.act)}</td><td>${esc(l.sup)}</td></tr>`).join('')}</table></div></div>
+   <div class="panel stack"><div class="row" style="justify-content:space-between"><h3>원인 대화</h3><span class="small ${SAMPLE&&!S.scripted?'judge ok':'muted'}" title="AI 코치는 서버에 연결됐을 때 사용할 수 있어요">${SAMPLE&&!S.scripted?'● AI 코치와 대화 중':'준비된 대화 · AI 서버에 연결되면 AI 코치와 대화해요'}</span></div>
+    <div class="small" style="max-height:220px;overflow:auto" id="omList"><div class="row" style="justify-content:space-between"><b>오늘 빠진 간호 ${om.length}건</b><span class="${revCount(om)===om.length?'judge ok':'muted'}">확인 ${revCount(om)}/${om.length}</span></div><div class="muted">모든 누락을 확인해야 다음 단계로 넘어가요. 대화로 다루면 자동으로 확인되고, 읽고 [확인]을 눌러도 돼요.</div>${om.length?['사건','선택','라운딩','업무표'].map(c=>{const l=om.filter(o=>o.cat===c);return l.length?`<div class="muted" style="margin-top:6px">${c==='사건'?'근무 중 사건으로 드러남':c==='선택'?'근무 중 선택에서 빠짐':c==='라운딩'?'라운딩에서 놓침':'업무표·근무 중 빠짐'}</div>${l.map(o=>{const done=(S.reviewed||[]).includes(o.k);return `<div class="row" style="gap:6px;padding:3px 0;border-bottom:1px dashed var(--line);flex-wrap:nowrap;align-items:flex-start"><span style="flex:1;${done?'color:var(--sub)':''}">${esc(o.text)}${(S.discussed||[]).includes(o.k)?' <span class="tag ok">대화함</span>':''}</span><button class="btn sm" data-act="omTalk" data-v="${esc(o.k)}">대화로 보기</button><button class="btn sm ${done?'':'primary'}" data-act="omRev" data-v="${esc(o.k)}" ${(S.discussed||[]).includes(o.k)?'disabled':''}>${done?'✔ 확인함':'확인'}</button></div>`}).join('')}`:''}).join(''):' 없음'}</div>
+    <div class="chat" id="chat">${(()=>{const bub=b=>`<div class="bub ${b.role==='user'?'me':'ai'}">${esc(b.content)}</div>`;const at=S.chatBusy?(S.chatBusyAt??S.chat.length):S.chat.length;return S.chat.slice(0,at).map(bub).join('')+(S.chatBusy?`<div class="bub ai" id="liveBub">${S.liveText?esc(S.liveText):'<span class="muted">입력 중…</span>'}</div>`:'')+S.chat.slice(at).map(bub).join('');})()}${S.chatRetry?'<button class="btn sm" data-act="chatRetry" style="align-self:flex-start">다시 시도</button>':''}</div>
+    <div class="row" id="chatBtns">${(S.chatButtons||[]).map(b=>`<button class="chip" data-act="chatBtn" data-v="${esc(b)}">${esc(b)}</button>`).join('')}</div>
+    <div class="row"><input type="text" id="chatIn" placeholder="${S.chatBusy?'답을 쓰는 중에도 먼저 보내 둘 수 있어요':'편하게 답하거나 궁금한 걸 물어보세요'}" style="flex:1" value="${esc(S.chatDraft||'')}"><button class="btn" data-act="chatSend">보내기</button></div>
+    <div class="row" style="justify-content:space-between"><span class="small muted">${!om.length?'':revCount(om)<om.length?`빠진 간호 ${om.length-revCount(om)}건을 더 확인하면 넘어갈 수 있어요.`:S.chatActions.length?'모든 누락을 확인했고, 실천 목표도 정했어요.':'모든 누락을 확인했어요. 실천 목표를 1개 이상 정하면 넘어가요.'}</span>
+    <button class="btn primary" data-act="go" data-v="summary" ${!om.length||(revCount(om)===om.length&&S.chatActions.length)?'':'disabled'}>다음: 원인 정리</button></div></div></div>`;
+}
+after.chat=()=>{const c=$('#chat');if(c)c.scrollTop=c.scrollHeight;const i=$('#chatIn');if(i){i.oninput=()=>{S.chatDraft=i.value;};i.onkeydown=e=>{if(e.key==='Enter'&&!e.isComposing&&e.keyCode!==229){e.preventDefault();chatSend(i.value);}};if(S.chatFocus){i.focus();i.setSelectionRange(i.value.length,i.value.length);}}if(!S.chat.length&&!S.chatBusy)chatStart();};
+function revCount(om){return om.filter(o=>(S.reviewed||[]).includes(o.k)).length;}
+function markReviewed(k,talked){S.reviewed=S.reviewed||[];if(!S.reviewed.includes(k))S.reviewed.push(k);if(talked){S.discussed=S.discussed||[];if(!S.discussed.includes(k))S.discussed.push(k);}}
+function hlFrom(text){const m=text.match(/\d{2}:\d{2}/g);S.hl=m||[];}
+async function chatAI(){
+  const run=S.run1;
+  const prompt=`${CHAT_RULES}\n\n[참여자 이름] ${S.name}\n\n[빠진 간호 (안전 우선순위 순)]\n${omissions(run).map((o,i)=>`${i+1}. 키=${o.k} [${o.comp}] (${o.cat}) ${o.text}${(S.discussed||[]).includes(o.k)?' — 이미 다룸':(S.reviewed||[]).includes(o.k)?' — 사용자가 읽고 확인함':''}`).join('\n')||'- 없음'}\n\n[잘한 점: 지적하지 말 것]\n${wellDone(run).map(x=>'- '+x).join('\n')||'- 없음'}\n\n[근무 타임라인]\n${tlText(run)}\n\n[대화 기록]\n${S.chat.map(b=>(b.role==='user'?'간호사: ':'코치: ')+b.content).join('\n')||'(아직 없음: 첫 메시지를 작성)'}\n\n코치의 다음 메시지:`;
+  const r=await SAMPLE(prompt,{cache:false,modelTier:'default',onText:({text})=>{S.liveText=(text.split('###')[0]||'').trim();const el=$('#liveBub');if(el){el.textContent=S.liveText||'…';const c=$('#chat');if(c)c.scrollTop=c.scrollHeight;}}});
+  const full=(r&&r.text)||'';const i=full.indexOf('###');const vis=(i<0?full:full.slice(0,i)).trim();
+  const j=(i<0?null:parseJSON(full.slice(i+3)))||{};j.reply=vis;if(!vis)throw {code:'empty'};return j;
+}
+async function chatRun(){
+  S.chatBusy=true;S.chatBusyAt=S.chat.length;S.liveText='';S.chatQueued=false;S.chatRetry=false;render();
+  try{applyChat(await chatAI());}
+  catch(e){S.chatBusy=false;
+    if(!SAMPLE||(e&&e.code==='not_granted')){S.scripted=true;const last=S.chat.filter(b=>b.role==='user').pop();if(!S.chat.length)scriptedStart();else{S.chat.push({role:'assistant',content:'AI 연결을 쓸 수 없어서 준비된 대화로 이어 갈게요.'});scriptedReply(last.content);}return;}
+    S.chatQueued=false;S.chatRetry=true;S.chat.push({role:'assistant',content:e&&e.code==='rate_limited'?'잠깐 요청이 많았어요. 조금 뒤 [다시 시도]를 눌러 주세요.':'연결이 잠깐 끊겼어요. [다시 시도]를 눌러 주세요.'});S.chatErr=true;render();}
+}
+async function chatStart(){if(SAMPLE){chatRun();return;}scriptedStart();}
+function applyChat(j){
+  if(S.chatErr){S.chat=S.chat.filter(b=>!/^(연결이 잠깐|잠깐 요청이)/.test(b.content));S.chatErr=false;}
+  S.chatBusy=false;S.liveText='';S.chat.splice(S.chatBusyAt??S.chat.length,0,{role:'assistant',content:j.reply});S.chatButtons=j.buttons||[];
+  (j.actions||[]).forEach(a=>{if(a&&!S.chatActions.includes(a))S.chatActions.push(a);});
+  const ks=omissions(S.run1).map(o=>o.k);(j.covered||[]).forEach(k=>{if(ks.includes(k))markReviewed(k,true);});
+  S.orgFactors=Array.from(new Set((S.orgFactors||[]).concat(j.orgFactors||[])));
+  if(j.balance&&j.balance!=='none')S.chatBalance=j.balance;hlFrom(j.reply);
+  if(S.chatQueued){S.chatQueued=false;chatRun();return;}render();
+}
+async function chatSend(v){
+  v=(v||'').trim();if(!v)return;S.chat.push({role:'user',content:v});S.chatButtons=[];S.chatDraft='';S.chatFocus=true;
+  if(S.chatBusy){S.chatQueued=true;render();return;}
+  if(SAMPLE&&!S.scripted){chatRun();return;}
+  scriptedReply(v);
+}
+/* AI가 없을 때의 준비된 대화: 같은 질문 반복 없이 단계 진행 */
+let SC={idx:0,step:0,vague:false,turn:0};
+/* 누락별 설명(왜 중요한지)과 힌트, 관련 되감기 지점 */
+const OM_INFO={
+ E:{why:'85세, 낙상 고위험(모스 55)인데 새벽에도 혼자 내려오려 하셨어요. 응급 동안 아무도 보지 못하면 골절 같은 큰 손상으로 이어질 수 있어요.',hint:'라운딩 때 호출벨을 손 닿는 곳에 두고, 응급 중이라도 지원 인력이 오면 액팅이 한 번 들여다보게 할 수 있어요.',rw:['round','c1115']},
+ RA:{why:'목표가 SpO2 94% 이상인데 89%였어요. 캐뉼라가 빠진 채 두면 저산소 상태가 계속돼요.',hint:'라운딩에서 본 산소 문제는 메모보다 그 자리에서 바로 고치는 게 먼저예요.',rw:['round']},
+ RB:{why:'흡인성 폐렴 환자는 침상 머리가 낮으면 다시 흡인될 위험이 커요.',hint:'흡인 위험 환자는 라운딩 때 침상 각도부터 봐요.',rw:['round']},
+ RE:{why:'호출벨이 바닥에 있으면 도움이 필요할 때 부르지 못하고 혼자 움직이게 돼요.',hint:'호출벨 위치 확인과 "혼자 일어나지 마세요" 설명은 10초면 끝나요.',rw:['round']},
+ RD:{why:'가래 증가와 숨참은 COPD 악화의 전조였어요. 기록해 두면 재사정 시점을 정할 수 있어요.',hint:'전조 증상은 메모하고 재사정 시간을 업무표에 넣거나 주치의에게 알려요.',rw:['round','sched']},
+ B:{why:'브레이든 12점 고위험 환자에게 2시간 체위 변경이 밀리면 발적이 빠르게 생겨요.',hint:'응급 중 지원 인력이 오면 체위 변경은 액팅에게 맡길 수 있는 업무예요.',rw:['c1115','c1230']},
+ CI:{why:'식전 인슐린이 늦어지면 식사를 미루거나 식후 고혈당이 생겨요.',hint:'BST는 액팅, 인슐린은 내가. 나눠서 하면 시간을 줄일 수 있어요.',rw:['c1115','c1230']},
+ C:{why:'15시 퇴원인데 교육이 늦어지면 집에서 자가주사를 못 할 수 있어요.',hint:'딸이 오는 시간에 맞춰 교육 시간을 업무표에 먼저 잡아 두면 밀리지 않아요.',rw:['c1300','sched']},
+ NC:{why:'퇴원 전 자가주사 교육이 빠지면 집에서 인슐린을 안전하게 맞기 어려워요.',hint:'퇴원 환자 교육은 업무표에서 가장 먼저 시간을 잡아요.',rw:['c1300','sched']},
+ B480:{why:'체위 변경이 업무표에 없으면 바쁜 날 가장 먼저 빠져요.',hint:'인계에서 들은 "짝수 시간 체위 변경"을 업무표에 시간별로 넣어 두면 돼요.',rw:['sched']},
+ B600:{why:'체위 변경이 업무표에 없으면 바쁜 날 가장 먼저 빠져요.',hint:'인계에서 들은 "짝수 시간 체위 변경"을 업무표에 시간별로 넣어 두면 돼요.',rw:['sched']},
+ NE:{why:'낙상 고위험 환자를 근무 중 한 번도 확인하지 않으면 위험을 미리 막을 기회가 없어요.',hint:'낙상 고위험 환자는 업무표에 확인 시간을 정해 두세요.',rw:['sched']},
+ I:{why:'노재현 님은 화장실만 가도 SpO2 85%로 떨어지는 분이에요. 입원으로 내가 묶이는 동안 동행할 사람이 없었어요.',hint:'입원을 받기 전에 액팅에게 "1시부터 노재현 님 화장실 동행"을 미리 부탁할 수 있어요.',rw:['c1230','sched']},
+ I3:{why:'SpO2 85%는 바로 봐야 하는 변화예요. 입원이 끝날 때까지 기다리면 저산소가 길어져요.',hint:'입원을 잠시 맡기고 직접 가서 산소를 다시 연결하고 보고하는 게 먼저예요.',rw:['c1230']},
+ CALL:{why:'처방 변경을 미루면 변경 전 용량으로 약을 준비하게 돼 투약 오류로 이어질 수 있어요.',hint:'준비하던 곳을 표시하고 전화를 먼저 받으면 돌아와서 이어 할 수 있어요.',rw:['sched']},
+ K:{why:'음압격리실과 보호구가 준비되지 않으면 결핵 의심 환자가 도착했을 때 격리가 늦어져요.',hint:'입원 30분 전에는 기록보다 입원 준비를 먼저 해요.',rw:['c1230']},
+ PRN:{why:'PRN이 필요한지는 담당간호사가 사정해서 판단해야 해요. 사정 없이 주면 효과도 확인하기 어려워요.',hint:'내가 오심 정도를 사정하고, 투여만 액팅에게 요청하는 순서예요.',rw:['c0940']},
+ SC:{why:'처방을 받고 확인하는 건 담당간호사 업무라 액팅에게 넘기면 전달 과정에서 오류가 생길 수 있어요.',hint:'하던 준비를 표시해 두고 내가 받는 게 안전해요.',rw:[]},
+ G:{why:'밤새 울었던 환자가 식사도 못 하고 있었어요. 약만으로는 채워지지 않는 부분이에요.',hint:'10분이라도 대화 시간을 업무표에 넣어 두면 바쁜 날에도 빠지지 않아요.',rw:['c1230','sched']},
+ J:{why:'흡입기를 잘못 쓰면 집에서 COPD가 다시 나빠질 수 있어요.',hint:'퇴원 환자 교육은 업무표에 먼저 넣고, 교육 중 질문이 오면 "교육 마치고 바로 설명드릴게요"라고 알려요.',rw:['c1020','sched']},
+ GRE:{why:'PRN을 준 뒤 효과를 다시 보지 않으면 약이 들었는지 알 수 없어요.',hint:'PRN 요청과 함께 30분 뒤 재사정을 업무표에 넣어요.',rw:['c0940']},
+ RI:{why:'캐뉼라를 목에 건 채 SpO2 89%였어요. 목표 94% 아래라 바로 고쳐야 하는 상태예요.',hint:'라운딩에서 본 산소 문제는 그 자리에서 해결해요.',rw:['round']}
+};
+const omInfo=o=>OM_INFO[o.k]||(o.k.startsWith('H')?{why:'업무표에 넣었지만 다른 업무에 밀려 끝내 하지 못한 일이에요.',hint:'밀린 업무는 근무 중 업무표에서 ✎로 시간을 옮기거나 액팅에게 맡길 수 있는지 봐요.',rw:['sched']}:{why:'',hint:'',rw:[]});
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+const quote=v=>{const t=v.replace(/\s+/g,' ').trim();return t.length>28?t.slice(0,28)+'…':t;};
+function say(t,btns){S.chat.push({role:'assistant',content:t});S.chatButtons=btns||[];hlFrom(t);render();}
+function problemMsg(o,first){
+  const [a,b]=o.text.split(' → ');
+  return `${first?'':pick(['다음으로 볼 부분은 ','이어서 ','그럼 이번엔 '])}「${a}」${b?`, 그 결과 「${b}」였어요`:''}. 타임라인 ${hm(o.sitT)} 줄을 같이 보면서, 그때 왜 이렇게 됐다고 생각하는지 편하게 이야기해 줄래요?`;
+}
+function scriptedStart(){
+  S.scripted=true;const om=omissions(S.run1);SC={idx:0,step:2,vague:false,turn:0};
+  if(!om.length){say(`근무 수고했어요, ${S.name} 선생님. 오늘은 빠진 간호가 확인되지 않았어요. 오늘 근무에서 가장 신경 써서 판단한 장면은 어디였나요?`);SC.step=9;return;}
+  const well=wellDone(S.run1);
+  say(`근무 수고했어요, ${S.name} 선생님. 오늘 같은 날은 정신없었을 거예요. 빠진 간호가 ${om.length}건 확인됐는데${well.length?`, ${well[0].replace(/^.*?: /,'')}처럼 잘한 부분도 분명히 있었어요`:''}. 환자 안전과 가장 가까운 것부터 하나씩 볼게요. ${problemMsg(om[0],true)}`);
+}
+function answerQuestion(v,cur){
+  if(/정답|맞는 순서|뭐가 맞|어떤 게 맞/.test(v))return '정답 순서는 마지막 결과 리포트에서 근거와 함께 보여 드릴게요. 지금은 정답보다, 그때 내가 무엇을 보고 그렇게 골랐는지를 같이 보는 게 목적이에요.';
+  if(/왜.*(문제|중요|위험)|뭐가 문제|위험해|심각/.test(v))return cur?omInfo(cur).why:'';
+  if(/어떻게|방법|뭘 해야|무엇을 해야|힌트/.test(v))return cur?`한 가지 방법을 말씀드리면, ${omInfo(cur).hint}`:'';
+  if(/누구|담당|액팅.*(해도|되나|가능)/.test(v))return '사정·교육·PRN 필요 여부 판단·보고는 담당간호사가 하고, 체위 변경·BST·V/S·동행·요청받은 PRN 투여는 액팅에게 맡길 수 있어요.';
+  if(/타임라인|어디서 봐|어디 봐/.test(v))return cur?`왼쪽 타임라인에서 ${hm(cur.sitT)} 줄이 노란색으로 표시돼 있어요. 그때 나와 액팅 선생님이 어디에 있었는지도 같이 나와요.`:'';
+  return '';
+}
+function scriptedReply(v){
+  const om=omissions(S.run1);const run=S.run1;const cur=om[SC.idx];SC.turn++;
+  const isQ=/\?|？|왜|뭐|어떻게|무슨|알려|궁금|맞나요|되나요|인가요/.test(v);
+  const personal=/내|제|시간관리|못|실수|부족|탓|놓쳤|몰랐|깜빡|잊/.test(v)&&!/응급|바빠|인력|사람이|상황|없어서|겹/.test(v);
+  const org=/응급|바빠|바쁜|인력|사람이|상황|없어서|겹|정신없/.test(v);
+  if(isQ){const a=answerQuestion(v,cur);if(a){
+    const back=SC.step===2?'그럼 다시 돌아와서, 그때 왜 그렇게 됐다고 생각하나요?':SC.step===3?'이걸 참고해서, 다음에 같은 상황이 오면 어떻게 하겠어요?':SC.step===4?'이제 실천 목표를 한 문장으로 정해 볼까요?':'';
+    say(`${a} ${back}`.trim());return;}}
+  if(SC.step===9){S.chatActions.push(v);say(`"${quote(v)}" 좋은 판단이었어요. 그 기준을 다음 근무에서도 이어 가 보세요. 이제 원인 정리로 넘어가도 돼요.`);return;}
+  if(!cur){say(revCount(om)===om.length?'오늘 빠진 간호를 모두 확인했어요. 원인 정리로 넘어가 볼까요?':'목록에서 아직 확인하지 않은 누락의 [대화로 보기]를 눌러 이어서 볼 수 있어요.');return;}
+  if(SC.step===2){
+    if(/모르|글쎄|잘 모/.test(v)&&v.length<14){say(pick(['괜찮아요, 바로 떠오르지 않을 수 있어요.','그럴 수 있어요. 처음엔 잘 안 보이기도 해요.'])+' 아래에서 가장 가까운 것을 골라 봐도 돼요.',['다른 일이 겹쳐서 볼 사람이 없었어요','인계 때 그 정보를 놓쳤어요','중요하다고 생각하지 못했어요']);return;}
+    const at=run.logs.filter(l=>l.t<=cur.sitT).pop()||{me:'병동',act:'병동'};const echo=pick([`"${quote(v)}"라고 보셨군요.`,`${quote(v)}, 그렇게 느낄 수 있어요.`,`솔직하게 말해 줘서 고마워요.`]);
+    let lead;
+    if(personal){S.chatBalance=S.chatBalance==='org'?'both':'personal';lead=`${echo} 그런데 타임라인 ${hm(at.t)} 줄을 보면 그때 나는 ${at.me}, 액팅 선생님은 ${at.act}에 있었어요. 내 시간관리만의 문제가 아니라 그 상황도 같이 작용했어요.`;S.orgFactors=Array.from(new Set((S.orgFactors||[]).concat(at.me===at.act&&at.me!=='병동'?[`담당·액팅 모두 ${at.me}에 묶여 있었음`]:[])));}
+    else if(org){S.chatBalance=S.chatBalance==='personal'?'both':'org';const ln=run.logs.filter(l=>l.type==='ch'&&l.t<=cur.chT).pop();lead=`${echo} 정말 겹치는 일이 많았죠. 그래도 타임라인 ${ln?hm(ln.t):hm(cur.chT)} 줄${ln&&ln.choice?`(내 선택: ${ln.choice})`:''}을 보면 그 시점에 내가 정할 수 있었던 부분도 있었어요.`;S.orgFactors=Array.from(new Set((S.orgFactors||[]).concat(SCN.ORG_DEFAULT)));}
+    else lead=`${echo} ${omInfo(cur).why}`;
+    say(`${lead} 다음 근무에서 같은 상황이 온다면 어떻게 해 보고 싶어요?`);SC.step=3;return;}
+  if(SC.step===3){
+    if(v.length<6){say(`조금만 더 이야기해 줄래요? 예를 들어 ${omInfo(cur).hint||'누구에게 무엇을 부탁할지'} 같은 방향도 있어요.`);return;}
+    say(`${pick(['좋은 방향이에요.','네, 그렇게 하면 달라질 것 같아요.','현실적인 방법이에요.'])} "${quote(v)}"를 다음 근무에서 바로 쓸 수 있게 실천 목표로 다듬어 볼까요? "언제, 누가, 무엇을" 할지 한 문장으로 적어 주세요.`);SC.step=4;SC.vague=false;return;}
+  if(SC.step===4){
+    const concrete=v.length>=10&&/(시|때|후|전|먼저|바로|오면|끝나면|동안|중)/.test(v);
+    if(!concrete&&!SC.vague){SC.vague=true;say(`방향은 좋아요. 언제 할지를 넣으면 더 쓰기 쉬워요. 예를 들면 "${(omInfo(cur).hint||'').split('. ')[0]}"처럼요. 한 번만 더 적어 줄래요?`);return;}
+    S.chatActions.push(v);markReviewed(cur.k,true);SC.step=2;
+    const ni=om.findIndex(o=>!(S.reviewed||[]).includes(o.k));const next=om[ni];
+    if(next){SC.idx=ni;say(`좋아요, 실천 목표는 "${quote(v)}"로 정했어요. 아직 ${om.length-revCount(om)}건 남았어요. ${problemMsg(next,false)}`);return;}
+    say(`실천 목표는 "${quote(v)}"로 정했어요. 오늘 빠진 간호를 모두 함께 봤어요. 수고 많았어요. 이제 원인 정리로 넘어가도 돼요.`);SC.step=8;return;}
+  if(SC.step===8){const left=om.length-revCount(om);say(left?`아직 확인하지 않은 누락이 ${left}건 있어요. 목록에서 [대화로 보기]를 누르거나 읽고 [확인]을 눌러 주세요.`:'오늘 빠진 간호를 모두 확인했어요. 원인 정리로 넘어가서 정리해 볼게요.');}
+}
+/* ================= 9. 원인 정리 ================= */
+const S1_SUGGEST=['인계 중 음성 전용 정보 메모하기','라운딩 때 정순자 호출벨을 손 닿는 곳에 두고 혼자 일어나지 말라고 설명하기','지원 인력이 오면 액팅간호사를 우리 팀 환자에게 돌려보내기','응급 후 기록보다 담당 환자 확인 먼저 하기','교육 시간을 업무표에 미리 배치하기','응급 시작 때 책임간호사에게 상황 공유하기'];
+function vSummary(){
+  if(!S.summary)S.summary={org:(S.orgFactors&&S.orgFactors.length?S.orgFactors:SCN.ORG_DEFAULT).slice(0,4),mine:S.chatActions.slice(),pick:[]};
+  const s=S.summary;
+  return `<div class="panel stack" style="max-width:980px;margin:0 auto"><h2>원인 정리</h2>
+  <p class="muted" style="margin:0">바꿀 수 없었던 것은 자책을 덜어 내는 데, 할 수 있었던 것은 다음 근무의 행동으로 써요.</p>
+  <div class="grid2"><div class="panel stack" style="background:#f6f8fb"><h3>내가 바꿀 수 없었던 것</h3><ul style="margin:0;padding-left:18px">${s.org.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>
+   <div class="panel stack"><h3>내가 할 수 있었던 것</h3><ul style="margin:0;padding-left:18px">${s.mine.map(x=>`<li>${esc(x)} <span class="tag">내 말</span></li>`).join('')}</ul>
+   <div class="small muted">더 있으면 골라서 추가하세요.</div><div class="stack" style="gap:4px">${SCN.SUGGEST.map((x,i)=>`<label class="row" style="color:var(--ink)"><input type="checkbox" data-sg="${i}" ${s.pick.includes(i)?'checked':''}> ${x}</label>`).join('')}</div></div></div>
+  <p class="small muted" style="margin:0">책임간호사에게 상황을 공유하고 도움을 요청하는 것도 할 수 있었던 행동이에요. 인력 추가 요청은 결원 없는 설정이라 다루지 않아요.</p>
+  <div class="row" style="justify-content:flex-end"><button class="btn primary" data-act="go" data-v="rewind">다음: 선택 되감기</button></div></div>`;
+}
+/* ================= 10. 되감기 ================= */
+const S1_RW=[
+ {k:'round',label:'첫 라운딩 · 관찰 판단',desc:'관찰 판단을 다시 하고, 근무 중 선택은 처음부터 다시 해요.'},
+ {k:'sched',label:'업무표 작성',desc:'업무표를 다시 고치고(시간 제한 없음), 근무 중 선택은 처음부터 다시 해요.'},
+ {k:'c1115',label:'11:15 · 다른 팀 간호사 2명 도착',desc:'그 전 선택은 그대로 두고 11:15부터 다시 골라요.'},
+ {k:'c1230',label:'12:30 · 응급 종료 후 우선순위',desc:'그 전 선택은 그대로 두고 12:30부터 다시 골라요.'},
+ {k:'c1300',label:'13:00 · 이미경 님 딸 도착',desc:'그 전 선택은 그대로 두고 13:00부터 다시 골라요.'}
+];
+function vRewind(){
+  if(S.run2)return rewindResultHTML();
+  return `<div class="panel stack" style="max-width:900px;margin:0 auto"><h2>선택 되감기</h2>
+  <p class="muted" style="margin:0">인력과 환자는 그대로 두고, 누락이 시작된 지점으로 돌아가 다른 선택을 해 봐요. 정답은 아직 공개하지 않아요.</p>
+  ${(()=>{const om=omissions(S.run1);if(!om.length)return '<p class="notice" style="background:var(--ok-soft)">이번 근무에서는 빠진 간호가 없었어요.</p>';
+    const lab=k=>(SCN.RW.find(r=>r.k===k)||{}).label;
+    return `<div class="panel stack" style="background:#fbfcfe"><div class="row" style="justify-content:space-between"><h3>처음 근무에서 놓친 부분 전체 (${om.length}건)</h3><span class="small muted">관련 지점을 누르면 바로 그 지점으로 되감아요</span></div>
+    ${['사건','선택','라운딩','업무표'].map(c=>{const l=om.filter(o=>o.cat===c);return l.length?`<div class="small muted">${c==='사건'?'근무 중 사건으로 드러남':c==='선택'?'근무 중 선택에서 빠짐':c==='라운딩'?'라운딩에서 놓침':'업무표·근무 중 빠짐'}</div>
+     ${l.map(o=>{const inf=omInfo(o);return `<div style="border-bottom:1px dashed var(--line);padding:6px 0"><div><span class="mono small muted">${hm(o.t)}</span> <b>${esc(o.text)}</b> <span class="tag">${esc(o.comp||'')}</span></div>${inf.why?`<div class="small">${esc(inf.why)}</div>`:''}${(S.chatActions||[]).length?'':''}<div class="row" style="gap:4px;margin-top:4px">${inf.rw.filter(k=>lab(k)).map(k=>`<button class="chip" data-act="rwGo" data-v="${k}">↺ ${esc(lab(k))}</button>`).join('')||'<span class="small muted">되감기로 바꿀 수 있는 지점이 없어요. 행동 계획에서 다뤄요.</span>'}</div></div>`}).join('')}`:''}).join('')}</div>`;})()}
+  <h3>되감을 지점 고르기</h3>
+  <div class="stack">${SCN.RW.map(r=>`<button class="opt pbtn" style="padding:12px" data-act="rwGo" data-v="${r.k}"><span><b>${r.label}</b><br><span class="small muted">${r.desc}</span></span><span>→</span></button>`).join('')}</div>
+  <div class="row" style="justify-content:flex-end"><button class="btn" data-act="go" data-v="plan">되감기 없이 행동 계획으로</button></div></div>`;
+}
+function rwGo(k){
+  S.rewindPoint=k;S.mode='rewind';
+  const order=SCN.ORDER;
+  const pre={};
+  if(k.startsWith('c')){for(const id of order){if(id===k)break;pre[id]=S.run1.choices[id];}}
+  S.presetChoices=pre;
+  if(k==='round'){S.rwPid=SCN.ROUND_KEYS[0];showRoundRewind();return;}
+  if(k==='sched'){S.schedLeft=99999;go('sched');return;}
+  startRun(true);
+}
+function showRoundRewind(){
+  const pid=S.rwPid||SCN.RW_PID;const r=S.round[pid]||{};
+  $('#layer').innerHTML=`<div class="overlay"><div class="card"><h3>되감기 · 첫 라운딩</h3><div class="row">${SCN.ROUND_KEYS.map(p=>`<button class="chip ${p===pid?'on':''}" data-act="rwPid" data-v="${p}">${P[p].name}${S.round[p]&&S.round[p].d?' ✔':''}</button>`).join('')}</div><p style="margin:0"><b>${khead(pid)}</b><br>${esc(OBS[pid].text)}</p>
+  <div class="row">${[['act','즉시 조치'],['memo','메모'],['both','둘 다'],['skip','그냥 넘어가기']].map(([v,l])=>`<button class="chip ${r.d===v?'on':''}" data-act="rwRdec" data-v="${v}">${l}</button>`).join('')}</div>
+  ${Object.entries(ACTIONS).map(([c,l])=>`<div class="small muted">${c}</div><div class="row">${l.map(a=>`<button class="chip ${(r.a||[]).includes(a)?'on':''}" data-act="rwRact" data-v="${esc(a)}">${a}</button>`).join('')}</div>`).join('')}
+  <button class="btn primary" data-act="rwRoundOK">이대로 근무 다시 하기</button></div></div>`;
+}
+function showRewindResult(){S.mode='first';go('rewind');}
+function rewindResultHTML(){
+  const a=omissions(S.run1),b=omissions(S.run2);
+  const fixed=a.filter(x=>!b.some(y=>y.k===x.k));
+  const ch=SCN.ORDER.filter(id=>id!==SCN.RANK_ID&&S.run1.choices[id]!==S.run2.choices[id]).length+(JSON.stringify(S.run1.rank)!==JSON.stringify(S.run2.rank)?1:0)+SCN.ROUND_KEYS.filter(p=>JSON.stringify(S.run1.round[p]||{})!==JSON.stringify(S.run2.round[p]||{})).length+(S.run2.tasks.filter(t=>!t.auto&&!t.tag&&!t.rk).length!==S.run1.tasks.filter(t=>!t.auto&&!t.tag&&!t.rk).length?1:0);
+  return `<div class="panel stack" style="max-width:900px;margin:0 auto"><h2>되감기 결과</h2>
+  <div class="grid2"><div class="panel stack"><h3>처음 근무</h3><ul style="margin:0;padding-left:18px">${a.map(o=>`<li>${esc(o.text)}</li>`).join('')||'<li>누락 없음</li>'}</ul></div>
+  <div class="panel stack"><h3>되감기 근무</h3><ul style="margin:0;padding-left:18px">${b.map(o=>`<li>${esc(o.text)}</li>`).join('')||'<li>누락 없음</li>'}</ul></div></div>
+  <p style="margin:0;font-size:17px"><b>인력과 환자는 그대로였어요. 바뀐 건 선택 ${ch}개예요.</b> ${fixed.length?`막아 낸 누락: ${fixed.map(f=>f.text.split(' →')[0]).join(', ')}`:'아직 막지 못한 누락이 있어요. 다른 지점으로 한 번 더 되감아 볼 수 있어요.'}</p>
+  <div class="row" style="justify-content:flex-end"><button class="btn" data-act="rwAgain">다른 지점으로 다시 되감기</button><button class="btn primary" data-act="go" data-v="plan">다음: 행동 계획</button></div></div>`;
+}
+/* ================= 11. 행동 계획 ================= */
+function vPlan(){
+  if(!S.plan)S.plan=SCN.PLAN.map(r=>r.slice());
+  return `<div class="grid2"><div class="panel stack"><h2>이런 날이 또 오면</h2><p class="small muted" style="margin:0">내 말로 고쳐 써도 돼요.</p>
+   <table>${S.plan.map((r,i)=>`<tr><th style="width:110px">${r[0]}</th><td><textarea data-plan="${i}" style="min-height:44px">${esc(r[1])}</textarea></td></tr>`).join('')}</table></div>
+   <div class="panel stack"><h2>직접 연습: 부탁 문장</h2><p class="small muted" style="margin:0">${SCN.REQ.intro}</p>
+   <textarea id="req" placeholder="${esc(SCN.REQ.ph)}">${esc(S.reqText||'')}</textarea>
+   <button class="btn" data-act="reqFb">피드백 받기</button><div id="reqFb" class="small" style="white-space:pre-wrap">${esc(S.reqFeedback)}</div>
+   <div class="row" style="justify-content:flex-end"><button class="btn primary" data-act="go" data-v="report">결과 리포트 보기</button></div></div></div>`;
+}
+async function reqFb(){
+  const v=$('#req').value.trim();S.reqText=v;if(!v)return;
+  const el=$('#reqFb');el.textContent='확인하는 중…';
+  if(SAMPLE){try{const t=await ask(`신규간호사가 액팅간호사에게 하는 부탁 문장을 평가해 줘. 상황: ${SCN.REQ.ctx}. 액팅 업무 범위: V/S, BST, 체위 변경, 드레싱, 담당이 요청한 PRN 투여, 보행 보조·동행. 기준: 누구에게, 무엇을, 언제, 왜(근거)가 들어 있는지, 액팅 업무 범위 안인지, 정중하고 짧은지. 한국어로 좋은 점 1줄, 고칠 점 1~2줄, 고친 예문 1개. 비난하지 말 것. 6줄 이내.\n\n문장: ${v}`,{modelTier:'quick'});S.reqFeedback=t;el.textContent=t;return;}catch(e){}}
+  const fb=SCN.REQ.checks.map(([re,ok,no])=>re.test(v)?ok:no);if(SCN.REQ.warn&&SCN.REQ.warn[0].test(v))fb.push(SCN.REQ.warn[1]);
+  S.reqFeedback=fb.join('\n');el.textContent=S.reqFeedback;
+}
+
+/* ================= 12. 결과 리포트 ================= */
+const S1_TIE={E:1,B:2,CF:3,CI:3,CR:1,B14:2,R:9};
+function answerOrder(opts){return opts.slice().sort((a,b)=>a.g-b.g||SCN.TIE[a.k]-SCN.TIE[b.k]).map(o=>o.k);}
+const GN=g=>'P'+g;
+const S1_BASIS={E:'⑤ 낙상 위해 가능성 높음 (즉각적 손상 위험)',B:'⑤ 욕창 고위험 + ⑥ 이미 지연 (최대 P2)',B14:'⑤ 예방 간호, 시간 여유 있음',CF:'④ 식전 시간이 지남 (⑥ 중복 적용 안 함)',CI:'④ 식전 시간이 지남',CR:'⑦ 위임 투약의 반응 확인, 저혈당 위험',R:'해당 없음'};
+const S1_EVAL={
+ c0940:{'1':['ok','적절','딸이 오는 13시에 교육을 미리 배치해 퇴원 전 시간을 확보했어요.'],'2':['warn','부분적으로 적절','이미경 혼자라도 시작한 건 좋지만, 함께 배울 딸이 빠졌어요.'],'3':['crit','재검토 필요','15시 퇴원이라 교육 시간을 미리 잡지 않으면 밀리기 쉬워요.']},
+ c1100:{'1':['ok','적절','① 생명 위협·② 호흡(B) 문제라 즉시 의사 보고와 응급 대응이 필수예요.'],'2':['crit','재검토 필요','SpO2 84%·보조호흡근 사용은 P1이에요. 관찰로 의사 보고가 늦어졌어요.'],'3':['crit','재검토 필요','재측정보다 의사 보고·신속대응팀 호출이 먼저예요.']},
+ c1115:{'1':['crit','재검토 필요','현장에 간호사가 4명이었어요. 액팅을 돌려보내면 12시 업무를 지킬 수 있었어요.'],'2':['ok','적절','지원 인력이 왔을 때 액팅을 정시 업무로 보내 B·C의 지연을 막았어요.'],'3':['ok','적절','담당이 P1 응급 중이라 정규 투약 위임 기준을 충족해요. 반응 확인은 내가 해요. (인슐린 위임 규정은 병원마다 달라 확인 필요)']},
+ c1300:{'1':['ok','적절','15시 퇴원까지 교육과 연습 시간을 확보했어요.'],'2':['warn','부분적으로 적절','기록은 P4라 교육보다 미룰 수 있어요.'],'3':['crit','재검토 필요','퇴원 직전 교육은 연습 시간이 부족해요.']}
+};
+function judgeRank(run){
+  const ans=answerOrder(run.rankOpts);const mine=run.rank;
+  if(JSON.stringify(ans)===JSON.stringify(mine))return ['ok','적절'];
+  const firstP4=mine.indexOf('R');const lastP2=Math.max(...mine.map((k,i)=>run.rankOpts.find(o=>o.k===k).g===2?i:-1));
+  if(mine[0]===ans[0]||firstP4>lastP2)return ['warn','부분적으로 적절'];
+  return ['crit','재검토 필요'];
+}
+function roundEval(){
+  return SCN.ROUND_KEYS.map(p=>{const r=S.run1.round[p]||{};const o=OBS[p];let ok,why;
+   if(o.need.length){ok=(r.d==='act'||r.d==='both')&&o.need.some(n=>(r.a||[]).includes(n));why=`필요한 즉시 조치: ${o.need.join(', ')}`;}
+   else{ok=r.d==='memo'||r.d==='both'||((r.a||[]).some(x=>/주치의|EDBC/.test(x)));why=o.why||'메모해 두고 재확인할 대상';}
+   const dl={act:'즉시 조치',memo:'메모',both:'둘 다',skip:'넘어감'}[r.d]||'보지 않음';
+   return {p,ok,why,dl:dl+((r.a||[]).length?` (${r.a.join(', ')})`:'')};});
+}
+function infoFlow(){
+  return INFO.map(i=>({k:i.k,voice:i.voice,kardex:i.kardex,memo:S.memos.some(m=>m.pid===i.pid&&i.re.test(m.text+m.tags.join(''))),task:S.run1.schedule.some(i.task)}));
+}
+const scopeViol=run=>run.schedule.filter(t=>t.who==='act'&&RN_ONLY.includes(t.kind)).length;
+
+/* ===== 공통 행동: 두 근무에서 같은 기준으로 관찰 ===== */
+const BEHAV={
+ info:{name:'인계 정보를 업무표에 반영하기',change:'인계에서 들은 정보를 실제 간호계획으로 연결하는 행동이 달라졌어요.',tip:'음성에만 있는 정보는 동그라미 치고, 업무표를 짤 때 해당 시간에 업무로 넣기'},
+ prio:{name:'업무가 겹칠 때 우선순위 조정하기',change:'겹친 업무 중 환자 위험이 큰 일을 먼저 고르는 판단이 달라졌어요.',tip:'겹칠 때 "지금 안 하면 다칠 수 있는 환자"를 먼저 고르고 기록은 뒤로 미루기'},
+ deleg:{name:'액팅간호사와 업무 나누기',change:'액팅간호사에게 맡길 일과 내가 할 일을 구분해 나누는 행동이 달라졌어요.',tip:'사정·교육·PRN 판단은 내가, 체위 변경·동행·BST는 액팅에게 시간과 함께 부탁하기'},
+ round:{name:'라운딩에서 본 위험 바로 조치하기',change:'라운딩에서 본 위험을 그 자리에서 해결하는 행동이 달라졌어요.',tip:'라운딩 때 산소·호출벨·바닥·침상 머리를 먼저 보고 그 자리에서 고치기'},
+ edu:{name:'교육 시간 미리 배치하기',change:'퇴원교육 시간을 미리 확보하는 계획이 달라졌어요.',tip:'퇴원 환자는 업무표를 짤 때 교육 시간을 가장 먼저 잡기'},
+ interrupt:{name:'업무 중단 후 복귀하기',change:'하던 일을 표시하고 다시 돌아오는 행동이 달라졌어요.',tip:'중단될 때 하던 지점을 표시하고 "몇 분 뒤"를 정해 알린 뒤 돌아오기'},
+ report:{name:'상태 변화 때 바로 확인·보고하기',change:'상태가 변한 환자를 바로 확인하고 보고하는 행동이 달라졌어요.',tip:'SpO2가 목표 아래로 떨어지면 직접 가서 확인하고 주치의에게 보고하기'},
+ emo:{name:'정서적 지지 챙기기',change:'환자의 정서 상태를 업무로 챙기는 행동이 달라졌어요.',tip:'인계에서 들은 정서 정보는 10분 대화로 업무표에 넣기'},
+ handoff:{name:'못 한 간호 인계하기',change:'못 한 간호를 다음 근무자에게 넘기는 행동이 달라졌어요.',tip:'근무 끝에 오늘 생긴 사건과 못 한 간호를 빠짐없이 인계 목록에 넣기'}
+};
+const BEHAV_ORDER=['info','round','prio','deleg','report','edu','emo','interrupt','handoff'];
+const NA=(why)=>({st:'na',ev:why||'이번 근무에서 확인할 기회 없음'});
+function bInfo(run){
+  const items=INFO.filter(i=>!i.kardex).map(i=>({k:i.k,memo:S.memos.some(m=>m.pid===i.pid&&i.re.test(m.text+m.tags.join(''))),task:run.schedule.some(i.task)}));
+  const linked=items.filter(x=>x.memo&&x.task),miss=items.filter(x=>!(x.memo&&x.task));
+  const did=INFO.filter(i=>!i.kardex);const dOf=k=>(did.find(i=>i.k===k)||{}).did||k;
+  if(linked.length>=Math.ceil(items.length*2/3))return {st:'good',ev:`음성에만 있던 정보 ${items.length}개 중 ${linked.length}개를 메모하고 업무표에 넣었어요 (${linked.map(x=>x.k).join(', ')}).`,s:`${linked.map(x=>dOf(x.k)).join(', ')}처럼 인계에서 들은 위험을 메모하고 업무표에 넣었어요.`};
+  return {st:'needs',s:`음성에만 있던 ${miss.map(x=>x.k).join(', ')} 정보가 ${miss.every(x=>!x.memo)?'인계장과 업무표':'업무표'}에서 빠졌어요.`,ev:`음성에만 있던 정보 ${items.length}개 중 업무표까지 이어진 건 ${linked.length}개예요. 빠진 것: ${miss.map(x=>`${x.k} (인계장 ${x.memo?'✔':'✖'}·업무표 ${x.task?'✔':'✖'})`).join(', ')}.`};
+}
+function bRound(run){
+  const r=run.round||{};const keys=SCN.ROUND_KEYS.filter(p=>OBS[p].need.length);
+  const ok=keys.filter(p=>{const x=r[p]||{};return (x.d==='act'||x.d==='both')&&OBS[p].need.some(n=>(x.a||[]).includes(n));});
+  const miss=keys.filter(p=>!ok.includes(p));
+  if(!miss.length)return {st:'good',s:`라운딩에서 본 위험(${ok.map(p=>OBS[p].need[0]).join(', ')})을 그 자리에서 조치했어요.`,ev:`라운딩에서 ${ok.map(p=>`${P[p].name} 님(${OBS[p].need[0]})`).join(', ')}을 그 자리에서 조치했어요.`};
+  return {st:'needs',s:`라운딩에서 본 위험(${miss.map(p=>`${P[p].name} 님 ${OBS[p].need[0]}`).join(', ')})을 그대로 뒀어요.`,ev:`라운딩에서 ${miss.map(p=>`${P[p].name} 님(${OBS[p].need[0]})`).join(', ')} 조치를 하지 않았어요.`};
+}
+function bHandoff(run){
+  const need=SCN.handoffNeed(run);const sel=(S.handoff&&S.handoff.sel)||[];const miss=need.filter(i=>!sel.includes(i));
+  if(!need.length)return NA();
+  return miss.length?{st:'needs',ev:`인계에 넣어야 할 ${need.length}개 중 ${miss.map(i=>SCN.HANDOFF[i][0]).join(', ')}을 빠뜨렸어요.`}:{st:'good',ev:`인계에 넣어야 할 ${need.length}개를 모두 넣었어요.`};
+}
+const rankLabels=run=>run.rank.map(k=>run.rankOpts.find(o=>o.k===k).label.split(' (')[0]);
+function behaviors(run){const b=SCN.behaviors(run);b.info=bInfo(run);b.round=bRound(run);b.handoff=bHandoff(run);return b;}
+function profile(b){
+  const M={'인계 듣기·메모':['info'],'계획 세우기':['edu','emo'],'우선순위':['prio','report'],'업무 배분':['deleg','round'],'인계하기':['handoff']};
+  const out={};for(const [k,ids] of Object.entries(M)){const v=ids.map(i=>b[i]).filter(x=>x&&x.st!=='na').map(x=>x.st==='good'?100:30);out[k]=v.length?Math.round(v.reduce((a,c)=>a+c,0)/v.length):null;}
+  return out;
+}
+function pickPractice(b){return BEHAV_ORDER.filter(id=>b[id]&&b[id].st==='needs').slice(0,2);}
+
+/* ===== 리포트 ===== */
+function reportHTML(archived){
+  const run=S.run1,r2=S.run2;const ans=answerOrder(run.rankOpts);const j=judgeRank(run);const om=omissions(run);
+  const beh=behaviors(run);const prof=profile(beh);const viol=scopeViol(run);
+  const lab=(rn,k)=>{const o=(rn.rankOpts||[]).find(x=>x.k===k);return o?o.label.split(' (')[0]:'–';};
+  const rows=ans.map((_,i)=>`<tr><td class="mono">${i+1}</td><td>${esc(lab(run,run.rank[i]))}</td><td>${r2&&r2.rank?esc(lab(r2,r2.rank[i])):'–'}</td><td><b>${esc(lab(run,ans[i]))}</b> <span class="tag ${run.rankOpts.find(o=>o.k===ans[i]).g<=2?'warn':''}">${GN(run.rankOpts.find(o=>o.k===ans[i]).g)}</span><div class="small muted">${SCN.BASIS[ans[i]]} · ${run.rankOpts.find(o=>o.k===ans[i]).who}</div></td></tr>`).join('');
+  const re=roundEval();const inf=infoFlow();
+  const memoInTask=S.memos.filter(m=>run.schedule.some(t=>t.pid===m.pid)).length;
+  const good=BEHAV_ORDER.filter(id=>beh[id].st==='good'),needs=BEHAV_ORDER.filter(id=>beh[id].st==='needs');
+  const rankCard=CARDS.find(c=>c.id===SCN.RANK_ID);
+  const ones=SCN.ORDER.filter(id=>id!==SCN.RANK_ID&&run.choices[id]!=null);
+  const rw=r2?(()=>{const a=omissions(run),b=omissions(r2);const fixed=a.filter(x=>!b.some(y=>y.k===x.k));return `<div class="panel stack"><h3>되감기 결과 (같은 사례에서 선택을 바꿨을 때)</h3><p style="margin:0">되감은 지점: ${esc((SCN.RW.find(x=>x.k===S.rewindPoint)||{}).label||'–')}. ${fixed.length?`막아 낸 누락 ${fixed.length}건: ${fixed.map(f=>esc(f.text.split(' →')[0])).join(', ')}`:'되감기에서도 같은 누락이 남았어요.'}</p></div>`;})():'';
+  return `<div class="stack" id="report">
+  <div class="panel stack"><div class="row" style="justify-content:space-between"><h2>${S.shiftNo}차 결과 리포트 · ${esc(S.name)}</h2><span class="small muted">호흡기내과 · ${SCN.title} · 낮번</span></div>
+   <p style="margin:0">[판단 결과] ${rankCard.title.split(' · ')[0]} 우선순위 <span class="judge ${j[0]}">${j[1]}</span></p>
+   <p class="small muted" style="margin:0">상황: ${SCN.branch(run)}. 이 상황의 정답이에요.</p>
+   <div class="tablewrap"><table><tr><th>순위</th><th>처음 선택</th><th>되감기 선택</th><th>정답 (3-1 규칙)</th></tr>${rows}</table></div>
+   <p style="margin:0"><b>[근거]</b> ${SCN.REASON}</p>
+   <p style="margin:0"><b>[결과 연결]</b> ${om.filter(o=>o.cat==='사건').length?om.filter(o=>o.cat==='사건').map(o=>esc(o.text)).join(' / '):'이번 근무에서는 누락이 사건으로 드러나지 않았어요.'}</p>
+   <p style="margin:0"><b>[대안]</b> ${SCN.ALT}</p>
+   ${j[0]==='ok'?`<p class="notice" style="background:var(--ok-soft)">${SCN.OK_NOTE}</p>`:''}</div>
+  <div class="panel stack"><h3>잘한 점과 보완할 점 <span class="small muted">· 실제 선택과 근무 기록 근거</span></h3>
+   <div class="grid2"><div class="stack" style="gap:6px"><b class="judge ok">잘한 점</b>${good.length?good.map(id=>`<div><b>${BEHAV[id].name}</b><div class="small">${esc(beh[id].ev)}</div></div>`).join(''):'<div class="small muted">이번 근무에서 확인된 강점이 아직 없어요.</div>'}</div>
+   <div class="stack" style="gap:6px"><b class="judge crit">보완할 점</b>${needs.length?needs.map(id=>`<div><b>${BEHAV[id].name}</b><div class="small">${esc(beh[id].ev)}</div></div>`).join(''):'<div class="small muted">보완이 필요한 행동이 없었어요.</div>'}</div></div>
+   ${BEHAV_ORDER.filter(id=>beh[id].st==='na').length?`<p class="small muted" style="margin:0">이번 근무에서 확인할 기회 없음: ${BEHAV_ORDER.filter(id=>beh[id].st==='na').map(id=>BEHAV[id].name).join(', ')}</p>`:''}</div>
+  ${S.shiftNo===2&&!archived?compareHTML():''}
+  <div class="panel stack"><h3>근무 중 다른 선택</h3><div class="tablewrap"><table><tr><th>시점</th><th>내 선택</th><th>평가</th><th>근거</th></tr>
+   ${ones.map(id=>{const c=CARDS.find(x=>x.id===id);const ch=run.choices[id];const e=SCN.EVAL[id][ch];return `<tr><td class="mono">${c.title.split(' · ')[0]}</td><td>${esc(c.opts.find(o=>o[0]===ch)[1])}</td><td class="judge ${e[0]}">${e[1]}</td><td>${e[2]}</td></tr>`}).join('')}</table></div></div>
+  ${rw}
+  <div class="grid2">
+   <div class="panel stack"><h3>정보가 어디서 빠졌는지</h3><div class="tablewrap"><table><tr><th>정보</th><th>음성</th><th>카덱스</th><th>내 인계장</th><th>업무표</th></tr>
+    ${inf.map(i=>`<tr><td>${i.k}</td><td>${i.voice?'✔':'–'}</td><td>${i.kardex?'✔':'–'}</td><td>${i.memo?'✔':'✖'}</td><td>${i.task?'✔':'✖'}</td></tr>`).join('')}</table></div></div>
+   <div class="panel stack"><h3>라운딩 판단</h3><div class="tablewrap"><table><tr><th>환자</th><th>내 판단</th><th></th></tr>
+    ${re.map(x=>`<tr><td style="white-space:nowrap">${pl(x.p)}</td><td>${esc(x.dl)}<div class="small muted">${x.why}</div></td><td class="judge ${x.ok?'ok':'crit'}">${x.ok?'적절':'재검토'}</td></tr>`).join('')}</table></div></div></div>
+  <div class="grid2">
+   <div class="panel stack"><h3>준비와 배분</h3><table>
+    <tr><th>카덱스 재확인</th><td>${PIDS.filter(p=>S.kv[p]).length}/${PIDS.length}명 열람 (${S.kvLog.length}회)</td></tr>
+    <tr><th>인계 듣기</th><td>${S.plays}회, 메모 ${S.memos.length}개</td></tr>
+    <tr><th>업무표</th><td>작성 ${Math.floor(Math.min(S.schedUsed,480)/60)}분 ${Math.min(S.schedUsed,480)%60}초, 직접 넣은 업무 ${run.schedule.length}개, 업무로 이어진 메모 ${memoInTask}개${run.schedule.filter(t=>t.kind==='기타').map(t=>`<div class="small">기타: ${esc(t.label)}</div>`).join('')}</td></tr>
+    <tr><th>위임 범위</th><td>${viol?`<span class="judge crit">액팅에게 맡길 수 없는 업무 ${viol}개</span><div class="small muted">교육·정서적 지지·사정·낙상 위험 확인은 담당간호사 업무예요.</div>`:'<span class="judge ok">업무표 배정은 모두 액팅 업무 범위 안</span>'}${run.flags.delegIns?'<div class="small">위임한 인슐린의 반응 확인: '+(run.rank&&run.rank.indexOf('CR')>-1&&run.rank.indexOf('CR')<3?'<span class="judge ok">함</span>':'<span class="judge warn">늦음</span>')+'</div>':''}</td></tr>
+    <tr><th>원인 균형</th><td>${({personal:'개인 쏠림 (내 탓으로만 봄)',org:'조직 쏠림 (상황 탓으로만 봄)',both:'균형 (상황과 내 행동을 함께 봄)',none:'확인 안 됨'})[S.chatBalance]}</td></tr></table></div>
+   <div class="panel stack"><h3>역량 프로필</h3>${Object.entries(prof).map(([n,v])=>`<div class="meter"><span>${n}</span><div class="bar"><i style="width:${v??0}%;background:${v==null?'var(--line)':v>=70?'var(--ok)':v>=40?'var(--warn)':'var(--crit)'}"></i></div><span class="mono small">${v??'–'}</span></div>`).join('')}
+    <p class="small muted" style="margin:0">'–'는 이번 근무에서 확인할 기회가 없었던 역량이에요.</p>
+    ${archived?'':`<button class="btn noprint" data-act="aiReport" ${SAMPLE?'':'disabled'}>${SAMPLE?'AI 해설 받기':'AI 해설 (AI 연결 시 사용 가능)'}</button><div id="aiRep" class="small" style="white-space:pre-wrap">${esc(S.aiReport)}</div>`}</div></div>
+  ${archived?'':nextHTML(beh)}
+  </div>`;
+}
+function nextHTML(beh){
+  if(S.shiftNo===1){
+    const pr=pickPractice(beh);S.practice=pr;
+    return `<div class="panel stack"><h3>다음 근무에서 연습할 과제</h3>
+     ${pr.length?`<ol style="margin:0;padding-left:20px">${pr.map(id=>`<li><b>${BEHAV[id].name}</b><div class="small">이번 근무: ${esc(beh[id].ev)}</div><div class="small">다음 근무에서: ${BEHAV[id].tip}</div></li>`).join('')}</ol>`:'<p style="margin:0">보완이 필요한 행동이 없었어요. 다음 근무에서는 오늘 잘한 행동이 다른 상황에서도 이어지는지 볼게요.</p>'}
+     <p style="margin:0">2차 근무는 <b>다른 상황</b>이에요. 호흡기내과 「큰 사건 없이 바쁜 날」: 오전 퇴원, 13시 결핵 의심 음압격리 입원, 잦은 업무 중단이 겹쳐요. 응급은 없어요.</p>
+     <div class="row noprint" style="justify-content:flex-end"><button class="btn" data-act="restart">처음부터 다시</button><button class="btn primary" data-act="startShift2">2차 근무 시작</button></div></div>`;
+  }
+  return `<div class="panel stack noprint"><div class="row" style="justify-content:flex-end"><button class="btn" data-act="viewArch">1차 결과 리포트 보기</button><button class="btn" data-act="restart">처음부터 다시</button></div></div>`;
+}
+/* ===== 1·2차 근무 비교: 각 사례의 최초 근무 기록만 사용 ===== */
+function compareHTML(){
+  const h=S.hist[1];const b1=h.beh;const b2=behaviors(S.run1);
+  const cell=x=>x.st==='good'?'<span class="judge ok">했어요</span>':x.st==='needs'?'<span class="judge crit">보완 필요</span>':'<span class="muted">이번 근무에서 확인할 기회 없음</span>';
+  const prev=BEHAV_ORDER.filter(id=>b1[id].st==='needs');const kept=BEHAV_ORDER.filter(id=>b1[id].st==='good');
+  let up=0,same=0,na=0;
+  const row=id=>{const a=b1[id],b=b2[id];let diff,next;
+    if(b.st==='good'){up++;diff=`<b class="judge ok">개선</b> 1차에서는 ${esc(sh(a))} 2차에서는 ${esc(sh(b))} ${BEHAV[id].change}`;next=`새 상황에서도 유지하기: ${BEHAV[id].tip}`;}
+    else if(b.st==='needs'){same++;diff=`<b class="judge crit">그대로</b> 1차에서는 ${esc(sh(a))} 2차에서도 ${esc(sh(b))}`;next=`보완 과제로 남겨요: ${BEHAV[id].tip}`;}
+    else{na++;diff='<span class="muted">이번 근무에서 확인할 기회 없음</span>';next='다음 근무에서 다시 확인해요.';}
+    return `<tr><td><b>${BEHAV[id].name}</b>${(h.practice||[]).includes(id)?' <span class="tag">1차 연습 과제</span>':''}</td><td class="small">${esc(a.ev)}</td><td class="small">${cell(b)}<div>${esc(b.ev)}</div></td><td class="small">${diff}</td><td class="small">${next}</td></tr>`;};
+  const prevRows=prev.map(row).join('');
+  const keptRows=kept.map(id=>{const b=b2[id];return `<tr><td><b>${BEHAV[id].name}</b></td><td class="small">${esc(b1[id].ev)}</td><td class="small">${cell(b)}<div>${esc(b.ev)}</div></td><td class="small">${b.st==='good'?'<b class="judge ok">유지</b>':b.st==='needs'?'<b class="judge warn">이번엔 빠짐</b> 새 상황에서 다시 연습이 필요해요.':'<span class="muted">이번 근무에서 확인할 기회 없음</span>'}</td></tr>`}).join('');
+  const newNeeds=BEHAV_ORDER.filter(id=>b1[id].st==='na'&&b2[id].st==='needs');
+  return `<div class="panel stack"><div class="row" style="justify-content:space-between"><h3>1·2차 근무 비교</h3><span class="small muted">1차 「${esc(h.title)}」 → 2차 「${esc(SCN.title)}」</span></div>
+   <p class="small muted" style="margin:0">두 사례는 난이도와 업무가 달라서 총점이나 누락 건수로 비교하지 않아요. 두 근무에서 공통으로 관찰할 수 있는 행동을 각 사례의 처음 근무 기록으로 비교해요. 되감기 결과는 각 사례 리포트에 따로 있어요.</p>
+   ${prev.length?`<div class="row"><span class="tag ok">개선 ${up}</span><span class="tag crit">그대로 ${same}</span><span class="tag">확인할 기회 없음 ${na}</span></div>
+   <div class="tablewrap"><table><tr><th>행동</th><th>1차에서 보완이 필요했던 행동</th><th>2차에서 실제로 한 행동</th><th>두 근무에서 달라진 점</th><th>다음에 더 연습할 점</th></tr>${prevRows}</table></div>`:'<p style="margin:0">1차에서 보완이 필요했던 행동이 없었어요.</p>'}
+   ${kept.length?`<h3 style="margin-top:6px">1차에서 잘한 행동, 2차에서도 이어졌나요?</h3><div class="tablewrap"><table><tr><th>행동</th><th>1차</th><th>2차</th><th>결과</th></tr>${keptRows}</table></div>`:''}
+   ${newNeeds.length?`<p style="margin:0"><b>2차에서 새로 보인 과제:</b> ${newNeeds.map(id=>`${BEHAV[id].name} (${esc(b2[id].ev)})`).join(' / ')}</p>`:''}
+   <button class="btn noprint" data-act="aiCompare" ${SAMPLE?'':'disabled'}>${SAMPLE?'AI 비교 해설 받기':'AI 비교 해설 (AI 연결 시 사용 가능)'}</button><div id="aiCmp" class="small" style="white-space:pre-wrap">${esc(S.aiCompare||'')}</div></div>`;
+}
+const sh=x=>x.s||x.ev;
+async function aiCompare(){
+  const el=$('#aiCmp');el.textContent='작성하는 중…';const h=S.hist[1];const b1=h.beh,b2=behaviors(S.run1);
+  const lines=BEHAV_ORDER.map(id=>`- ${BEHAV[id].name}: 1차 ${b1[id].st} (${b1[id].ev}) / 2차 ${b2[id].st} (${b2[id].ev})`).join('\n');
+  try{S.aiCompare=await ask(`너는 신규간호사 교육 AI다. 같은 학습자의 1차 근무(${h.title})와 2차 근무(${SCN.title}) 결과를 공통 행동별로 비교한 자료다. good=잘함, needs=보완 필요, na=확인할 기회 없음. 총점이나 누락 건수로 판단하지 말고, 1차 피드백을 새 상황에 적용했는지를 근거와 함께 한국어 해요체 5~7문장으로 써라. 형식 예: "1차에서는 ~했어요. 2차에서는 ~했어요. ~하는 행동이 달라졌어요." na는 "이번 근무에서 확인할 기회 없음"이라고만 말하고 평가하지 마라. 비난하지 말고 마지막에 다음에 더 연습할 점 1가지를 제안하라.\n${lines}`);}catch(e){S.aiCompare='AI 해설을 불러오지 못했어요. 잠시 뒤 다시 눌러 주세요.';}
+  el.textContent=S.aiCompare;
+}
+function vReport(){
+  if(S.viewArch&&S.hist&&S.hist[1]){let html='';withShift(S.hist[1],()=>{html=reportHTML(true);});
+    return `<div class="stack" style="max-width:1100px;margin:0 auto"><div class="row noprint" style="justify-content:flex-end"><button class="btn primary" data-act="backReport">2차 리포트로 돌아가기</button></div>${html}</div>`;}
+  return `<div class="stack" style="max-width:1100px;margin:0 auto">
+  <div class="row noprint" style="justify-content:flex-end;gap:10px"><span class="small muted" id="pdfMsg"></span><button class="btn primary" data-act="savePdf">PDF로 저장</button></div>
+  ${reportHTML(false)}</div>`;
+}
+/* PDF: 리포트 화면을 이미지로 찍어 A4 쪽으로 나눔 → 브라우저 다운로드로 저장 */
+function downloadBlob(blob,filename){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;a.style.display='none';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);}
+function loadScript(src){return new Promise((ok,no)=>{if(document.querySelector(`script[src="${src}"]`))return ok();const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=()=>no(new Error('load'));document.head.appendChild(s);});}
+async function savePdf(btn){
+  const msg=$('#pdfMsg');const say=t=>{if(msg)msg.textContent=t;};
+  btn.disabled=true;say('PDF를 만드는 중…');
+  try{
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+    if(document.fonts&&document.fonts.ready)await document.fonts.ready;
+    const el=$('#report');
+    const canvas=await html2canvas(el,{scale:2,backgroundColor:'#eef2f6',useCORS:true,ignoreElements:n=>n.classList&&n.classList.contains('noprint')});
+    const {jsPDF}=window.jspdf;const pdf=new jsPDF({unit:'mm',format:'a4',orientation:'portrait'});
+    const M=10,W=210-2*M,H=297-2*M;const pxPerMm=canvas.width/W;const pageH=Math.floor(H*pxPerMm);
+    for(let y=0,i=0;y<canvas.height;y+=pageH,i++){
+      const h=Math.min(pageH,canvas.height-y);const c=document.createElement('canvas');c.width=canvas.width;c.height=h;
+      const g=c.getContext('2d');g.fillStyle='#eef2f6';g.fillRect(0,0,c.width,h);g.drawImage(canvas,0,y,canvas.width,h,0,0,canvas.width,h);
+      if(i>0)pdf.addPage();pdf.addImage(c.toDataURL('image/jpeg',0.92),'JPEG',M,M,W,h/pxPerMm);
+    }
+    const blob=pdf.output('blob');
+    downloadBlob(blob,`케어갭_결과리포트_${(S.name||'참여자').replace(/[\\/:*?"<>|]/g,'')}.pdf`);
+    say('PDF를 저장했어요.');
+  }catch(e){say('PDF를 만들지 못했어요. 잠시 뒤 다시 눌러 주세요.');}
+  btn.disabled=false;
+}
+async function aiReport(){
+  const run=S.run1;const el=$('#aiRep');el.textContent='작성하는 중…';
+  const p=`너는 간호 업무 우선순위 결정을 돕는 교육 AI다. 시나리오: ${SCN.title}. 결과 리포트 해설을 한국어로 6~8줄 써라. 형식: [판단 결과] [근거] (판단 원칙 ①생명위협 ②ABC ③긴급성 ④시간민감성 ⑤안전·위해예방 ⑥지연 결과 ⑦위임 중 해당 항목) [결과 연결] [대안]. 비난 금지, 잘한 점은 구체적으로 칭찬. 교육·정서적 지지·사정은 위임 대안으로 제시하지 말 것. 책임간호사 상황 공유는 적절한 행동으로 인정. 시나리오에 없는 사실은 지어내지 말 것.
+12:30 보기와 정답 등급: ${run.rankOpts.map(o=>`${o.label}=P${o.g}`).join('; ')}
+사용자 순서: ${run.rank.map(k=>run.rankOpts.find(o=>o.k===k).label).join(' > ')}
+정답 순서: ${answerOrder(run.rankOpts).map(k=>run.rankOpts.find(o=>o.k===k).label).join(' > ')}
+다른 선택: ${SCN.ORDER.filter(id=>id!==SCN.RANK_ID&&run.choices[id]).map(id=>{const c=CARDS.find(x=>x.id===id);return c.title.split(' · ')[0]+'='+c.opts.find(o=>o[0]===run.choices[id])[1];}).join(', ')}
+누락: ${omissions(run).map(o=>o.text).join(' / ')||'없음'}`;
+  try{S.aiReport=await ask(p);}catch(e){S.aiReport='AI 해설을 불러오지 못했어요. 잠시 뒤 다시 눌러 주세요.';}
+  el.textContent=S.aiReport;
+}
+
+/* ================= 이벤트 ================= */
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-act]');if(!b)return;const v=b.dataset.v;const a=b.dataset.act;
+  const H={
+   startGo(){S.name=$('#nm').value.trim()||'신규간호사';go('assign');},
+   go(){go(v);},
+   hvPlay, hvStop(){if(WS)WS.cancel();hvEnd();},
+   cap(){HV.caption=!HV.caption;render();if(HV.i>=0)hvShow(HV.i);},
+   async askQ(){const q=$('#q').value.trim();if(!q)return;const pid=$('#qP').value;const out=$('#qa');out.insertAdjacentHTML('afterbegin','<div class="muted" id="qwait">밤번 간호사가 답하는 중…</div>');
+     let ans=null;if(SAMPLE){try{ans=await ask(`너는 호흡기내과 밤번 간호사로, 낮번 신규간호사에게 인계 중이다. 동료와 대화하듯 질문에 바로 답하라(예/아니요로 물으면 먼저 그것부터). 인계 내용이나 카덱스를 그대로 다시 읽어 주지 말고, 질문과 관련된 내용만 1~3문장 해요체로 말하라. 아래 정보와 [밤사이 관찰]에 없는 사실은 지어내지 말고 "그건 밤에 따로 확인하지 못했어요"처럼 솔직히 말하라.\n질문 대상 환자: ${P[pid].name}\n[밤사이 관찰] ${Object.values((NQ[SCN.id]||{})[pid]||{}).join(' ')}\n인계 내용:\n${HANDOVER.map(h=>h.t).join('\n')}\n카덱스: ${PIDS.map(p=>`${P[p].name}: ${P[p].dx}, ${P[p].o2}, ${P[p].meds}, ${P[p].care}`).join(' / ')}\n질문: ${q}`,{modelTier:'quick'});}catch(err){}}
+     if(!ans)ans=nightAnswer(pid,q);
+     QA.unshift({p:pid,q,a:ans});const w=$('#qwait');if(w)w.remove();out.insertAdjacentHTML('afterbegin',`<div><b>Q. ${esc(P[pid].name)}</b> ${esc(q)}<br><b>A.</b> ${esc(ans)}</div>`);$('#q').value='';},
+   mtag(){const t=v;pendingTags=pendingTags.includes(t)?pendingTags.filter(x=>x!==t):pendingTags.concat(t);b.classList.toggle('on');},
+   addMemo(){saveMemo();},
+   star(){const m=S.memos.find(x=>x.id==b.dataset.id);m.star=!m.star;refreshMemos();},
+   circle(){const m=S.memos.find(x=>x.id==b.dataset.id);m.circle=!m.circle;refreshMemos();},
+   editMemo(){if(S.memoEdit&&S.memoEdit!=b.dataset.id)saveMemoEdit();S.memoEdit=+b.dataset.id;refreshMemos();},
+   saveMemoEdit(){saveMemoEdit();},
+   cancelMemoEdit(){S.memoEdit=null;refreshMemos();},
+   delMemo(){S.memos=S.memos.filter(x=>x.id!=b.dataset.id);refreshMemos();},
+   kopen(){KSEL=v;viewKardex(v,'재확인');render();},
+   rsel(){RSEL=v;render();},
+   rdec(){const r=S.round[RSEL]=S.round[RSEL]||{a:[]};r.d=v;render();},
+   racts(){const r=S.round[RSEL];r.a=r.a||[];r.a=r.a.includes(v)?r.a.filter(x=>x!==v):r.a.concat(v);render();},
+   pinObs(){addMemo(RSEL,OBS[RSEL].text,[],'round');refreshMemos();showSlot(RSEL);b.textContent='메모에 고정함';b.disabled=true;},
+   sfWho(){SF.who=v;readSF();rerenderForm();},
+   addTask(){readSF();const nm=P[SF.pid].name,note=SF.etc.trim();const label=SF.kind==='기타'?(note?`${nm} ${note}`:null):`${nm} ${SF.kind}${note?': '+note:''}`;if(!label){$('#sfE').focus();return;}
+     const live=S.step==='shift'&&R;const pool=live?R.tasks.filter(x=>x.st!=='cancel'&&x.st!=='resolved'):S.schedule;const msg=t=>{const el=$('#sfMsg');if(el)el.textContent=t;};
+     if(live&&+SF.t<R.m){lockPast();msg('이미 지난 시간이에요.');return;}
+     if(pool.some(x=>x.id!==SF.editId&&x.pid===SF.pid&&x.kind===SF.kind&&x.t===+SF.t&&(SF.kind!=='기타'||x.note===note))){msg('같은 시간에 같은 업무가 이미 있어요. 수정하려면 업무표의 ✎를 눌러 주세요.');return;}
+     if(SF.from){const m=S.memos.find(x=>x.id===SF.from);if(m)m.used=true;}
+     if(SF.editId){const t=pool.find(x=>x.id===SF.editId);if(t){Object.assign(t,{t:+SF.t,pid:SF.pid,label,kind:SF.kind,who:SF.who,dur:KINDS[SF.kind],note});if(live&&t.st==='held')t.st='wait';}}
+     else{const t={id:'u'+(S.seq++),t:+SF.t,pid:SF.pid,label,kind:SF.kind,who:SF.who,dur:KINDS[SF.kind],note};if(live)R.tasks.push(Object.assign({st:'wait'},t));else S.schedule.push(t);}
+     if(live)drawShift();else $('#schedTable').innerHTML=schedRows(allTasks(S.schedule),false);
+     SF.etc='';SF.from=null;SF.editId=null;rerenderForm();refreshMemos();},
+   editTask(){const id=b.dataset.id;const live=S.step==='shift'&&R;const t=(live?R.tasks:S.schedule).find(x=>x.id===id);if(!t)return;
+     Object.assign(SF,{pid:t.pid,kind:t.kind,t:live&&t.t<R.m?(TIMES.find(x=>x>=R.m)??t.t):t.t,who:t.who,etc:t.note||'',editId:id,from:null});rerenderForm();const f=$('#taskForm');if(f){f.scrollIntoView({block:'nearest',behavior:'smooth'});f.classList.add('flash');setTimeout(()=>f.classList.remove('flash'),900);}},
+   cancelEdit(){SF.editId=null;SF.etc='';rerenderForm();},
+   delTask(){const id=b.dataset.id;if(S.step==='shift'&&R){const t=R.tasks.find(x=>x.id===id);if(t&&t.st==='wait')t.st='cancel';drawShift();return;}S.schedule=S.schedule.filter(x=>x.id!==id);$('#schedTable').innerHTML=schedRows(allTasks(S.schedule),false);},
+   schedDone,
+   onePick(){if(!CARD)return;CARD.sel=v;const c=CARD.c;clearInterval(CARD.timer);setTimeout(()=>resolveCard(c,v),180);drawCard();},
+   rankPick(){if(!CARD)return;const s=CARD.sel;const i=s.indexOf(v);if(i>-1)s.splice(i,1);else s.push(v);drawCard();},
+   rankOK(){if(!CARD)return;const c=CARD.c;resolveCard(c,CARD.sel.slice());},
+   handoffOK(){S.handoff.sel=[...document.querySelectorAll('[data-hi]')].filter(x=>x.checked).map(x=>+x.dataset.hi);$('#layer').innerHTML='';go('chat');},
+   chatSend(){const i=$('#chatIn');chatSend(i.value);},
+   chatBtn(){chatSend(v);},
+   chatRetry(){chatRun();},
+   omRev(){S.reviewed=S.reviewed||[];if(S.reviewed.includes(v)){if(!(S.discussed||[]).includes(v))S.reviewed=S.reviewed.filter(x=>x!==v);}else S.reviewed.push(v);render();},
+   omTalk(){const om=omissions(S.run1);const o=om.find(x=>x.k===v);if(!o)return;
+     if(SAMPLE&&!S.scripted){chatSend(`「${o.text.split(' →')[0]}」을 같이 보고 싶어요.`);return;}
+     S.chat.push({role:'user',content:`「${o.text.split(' →')[0]}」을 같이 보고 싶어요.`});SC.idx=om.indexOf(o);SC.step=2;SC.vague=false;say(problemMsg(o,true));},
+   rwGo(){rwGo(v);},
+   rwAgain(){S.run2=null;render();},
+   rwPid(){S.rwPid=v;showRoundRewind();},
+   rwRdec(){const k=S.rwPid||SCN.RW_PID;const r=S.round[k]=S.round[k]||{a:[]};r.d=v;showRoundRewind();},
+   rwRact(){const k=S.rwPid||SCN.RW_PID;const r=S.round[k]=S.round[k]||{a:[]};r.a=r.a||[];r.a=r.a.includes(v)?r.a.filter(x=>x!==v):r.a.concat(v);showRoundRewind();},
+   rwRoundOK(){$('#layer').innerHTML='';startRun(true);},
+   memo2task(){const m=S.memos.find(x=>x.id==b.dataset.id);if(!m)return;readSF();memoToSF(m);rerenderForm();const f=$('#taskForm');if(f){f.scrollIntoView({block:'nearest',behavior:'smooth'});f.classList.add('flash');setTimeout(()=>f.classList.remove('flash'),900);}},
+   async savePdf(){await savePdf(b);},
+   startShift2(){startShift2();},
+   viewArch(){S.viewArch=true;go('report');},
+   backReport(){S.viewArch=false;go('report');},
+   aiCompare(){aiCompare();},
+   reqFb, aiReport,
+   restart(){location.reload();}
+  };
+  H[a]&&H[a]();
+});
+/* 메모를 업무표 시간 칸으로 끌어다 놓기 */
+document.addEventListener('dragstart',e=>{const m=e.target.closest&&e.target.closest('[data-mid]');if(m){e.dataTransfer.setData('text/plain',m.dataset.mid);e.dataTransfer.effectAllowed='copy';}});
+document.addEventListener('dragover',e=>{const r=e.target.closest&&e.target.closest('tr[data-drop]');if(r&&S.step==='sched'){e.preventDefault();document.querySelectorAll('tr.dropover').forEach(x=>x!==r&&x.classList.remove('dropover'));r.classList.add('dropover');}});
+document.addEventListener('dragleave',e=>{const r=e.target.closest&&e.target.closest('tr[data-drop]');if(r&&!r.contains(e.relatedTarget))r.classList.remove('dropover');});
+document.addEventListener('drop',e=>{const r=e.target.closest&&e.target.closest('tr[data-drop]');if(!r||S.step!=='sched')return;e.preventDefault();r.classList.remove('dropover');
+  const m=S.memos.find(x=>x.id==e.dataTransfer.getData('text/plain'));if(!m)return;readSF();memoToSF(m,+r.dataset.drop);
+  const nm=P[SF.pid].name;const label=SF.kind==='기타'?`${nm} ${m.text}`:`${nm} ${SF.kind}: ${m.text}`;
+  S.schedule.push({id:'u'+(S.seq++),t:SF.t,pid:SF.pid,label,kind:SF.kind,who:SF.who,dur:KINDS[SF.kind]});m.used=true;SF.etc='';SF.from=null;
+  $('#schedTable').innerHTML=schedRows(allTasks(S.schedule),false);refreshMemos();rerenderForm();});
+document.addEventListener('keydown',e=>{if(e.target.id==='q'&&e.key==='Enter'&&!e.isComposing&&e.keyCode!==229){e.preventDefault();document.querySelector('[data-act=askQ]').click();return;}
+  if(e.target.id==='memoEdit'){if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&e.keyCode!==229){e.preventDefault();saveMemoEdit();}if(e.key==='Escape'){S.memoEdit=null;refreshMemos();}return;}
+  if(e.target.id==='memoText'&&e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&e.keyCode!==229){e.preventDefault();saveMemo();}});
+document.addEventListener('change',e=>{
+  const t=e.target;
+  if(t.id==='skv'){SKV=t.value;viewKardex(SKV,'업무표');readSF();render();}
+  if(t.id==='sfK'){readSF();rerenderForm();}
+  if(t.dataset.sg!==undefined){const i=+t.dataset.sg;const s=S.summary;s.pick=t.checked?s.pick.concat(i):s.pick.filter(x=>x!==i);}
+  if(t.dataset.rev!==undefined){const k=t.dataset.rev;S.reviewed=S.reviewed||[];if(t.checked){if(!S.reviewed.includes(k))S.reviewed.push(k);}else if(!(S.discussed||[]).includes(k))S.reviewed=S.reviewed.filter(x=>x!==k);render();}
+  if(t.dataset.plan!==undefined){S.plan[+t.dataset.plan][1]=t.value;}
+  if(t.id==='rEtc'&&RSEL){S.round[RSEL].etc=t.value;}
+});
+function readSF(){if($('#sfP')){SF.pid=$('#sfP').value;SF.kind=$('#sfK').value;SF.t=+$('#sfT').value;if($('#sfE'))SF.etc=$('#sfE').value;}}
+function rerenderForm(){const host=$('#sfP')&&$('#sfP').closest('.stack');if(host){host.outerHTML=taskForm();}}
+/* ================= 시나리오 1: 응급상황이 있는 날 ================= */
+S1_INFO.forEach(i=>{if(/새벽/.test(i.k))i.did='정순자 님 새벽 낙상 시도 → 낙상 위험 확인';if(/딸/.test(i.k))i.did='이미경 님 딸과 함께 교육 → 교육 시간 배치';if(/가래/.test(i.k))i.did='최병철 님 가래·숨참 → 재사정';});
+S1_OBS.D.why='악화의 전조라 메모해 두고 재확인할 대상 (EDBC·주치의 연락도 적절)';
+const SCN1={id:1,title:'응급상황이 있는 날',PIDS:S1_PIDS,P:S1_P,HANDOVER:S1_HANDOVER,INFO:S1_INFO,CANNED:S1_CANNED,OBS:S1_OBS,AUTO:S1_AUTO,CARDS:S1_CARDS,
+ TIMEOUT:S1_TIMEOUT,TIE:S1_TIE,BASIS:S1_BASIS,EVAL:S1_EVAL,ORDER:['c0940','c1100','c1115','c1230','c1300'],RANK_ID:'c1230',ROUND_KEYS:['A','B','D','E'],
+ RW:S1_RW,RW_PID:'E',SUP_LOC:'최병철 병실',SF_PID:'B',ASSIGN:'팀간호 · 담당 환자 10명 · 액팅간호사 1명과 함께 근무',
+ ORG_DEFAULT:['최병철 님의 갑작스러운 악화'],SUGGEST:S1_SUGGEST,
+ HANDOFF:[['정순자 님 12:10 혼자 일어나다 휘청 (외상 여부 확인)','E'],['박만수 님 천골 부위 발적 2×2cm','B'],['이미경 님 자가주사 교육 미완','C'],['최병철 님 11시 COPD 악화, 신속대응팀 대응','D'],['김영호 님 14시 항생제 투여','A'],['서동민 님 모레 퇴원 예정','J']],
+ handoffNeed(run){const n=[3];if(run.ev.E)n.push(0);if(run.ev.B)n.push(1);if(run.ev.C||run.eduStart==null)n.push(2);return n.sort();},
+ PLAN:[['인계 들을 때','위험·할 일에 별표, 카덱스에 없는 내 메모에 동그라미'],['업무표 작성','액팅간호사와 나눌 일을 미리 정하기'],['응급 시작','의사 보고, 책임간호사에게 상황 공유'],['응급 중','지원 인력이 오면 액팅간호사를 정시 업무로 돌려보내기'],['응급 종료','기록보다 담당 환자 확인 먼저'],['근무 종료','못 한 간호는 인계에 반드시 넣기']],
+ REQ:{intro:'11:15에 지원 인력이 왔을 때 액팅간호사에게 할 말을 적어 보세요.',ph:'예: 선생님, 여기 다른 선생님들 계시니까 박만수 님 12시 체위 변경이랑 이미경 님 BST 먼저 부탁드려도 될까요?',
+  ctx:'11:15 최병철 환자 응급 중 다른 팀 간호사 2명 도착, 12시에 박만수 체위 변경, 이미경 BST(식전 인슐린 전) 예정',
+  checks:[[/박만수|체위/,'✔ 무엇을: 박만수 님 체위 변경이 들어 있어요.','✖ 무엇을: 박만수 님 체위 변경처럼 구체적인 업무를 넣어 보세요.'],[/이미경|BST|혈당/,'✔ 이미경 님 혈당 측정도 챙겼어요.','✖ 12시 이미경 님 BST도 함께 부탁해 보세요.'],[/12시|시까지|먼저|지금/,'✔ 언제: 시간이 들어 있어요.','✖ 언제: "12시"처럼 시간을 넣어 보세요.'],[/계시니|있으니|와 주셔서|인력|선생님들/,'✔ 왜: 지원 인력이 왔다는 근거가 있어요.','✖ 왜: "다른 선생님들이 계시니까"처럼 이유를 붙이면 부탁이 쉬워져요.']],
+  warn:[/인슐린|교육|사정/,'ⓘ 인슐린 위임은 반응 확인을 내가 한다고 덧붙이고, 교육·사정은 맡기지 않아요.']},
+ REASON:'같은 P2 안에서는 즉각적 손상 위험(낙상)을 서서히 진행되는 위험(욕창)보다 앞에 둬요. 기록은 환자 상태에 바로 영향이 없어 P4예요.',
+ ALT:'응급이 끝나면 액팅은 박만수 님 체위 변경 → 이미경 님 BST, 나는 정순자 님 확인 → 이미경 님 인슐린 → 기록처럼 나눠서 동시에 할 수 있어요.',
+ OK_NOTE:'응급 직후 기록보다 환자부터 확인한 순서가 정확했어요.',
+ branch(run){return run.choices.c1115==='1'?'11:15에 "모두 응급 계속"을 골라 12시 박만수 님 체위 변경과 이미경 님 혈당·인슐린이 모두 밀린 상태':run.choices.c1115==='2'?'11:15에 액팅을 돌려보내 12시 박만수 님 체위 변경과 이미경 님 BST는 끝났고 인슐린만 남은 상태':'11:15에 액팅이 박만수 님 체위 변경, 이미경 님 BST·인슐린까지 마친 상태';},
+ events(){
+  if(R.m===730&&!R.ev.E){if(!eRoundOK()||R.choices.c1115==='1'){R.ev.E=730;log('정순자 님이 혼자 화장실에 가려다 휘청거림. 옆 병상 보호자가 부축함','ev');}}
+  if(R.m===840&&!R.ev.Bchk){R.ev.Bchk=1;const s=R.flags.B12start;if(s==null||s>765){R.ev.B=840;log('박만수 님 체위 변경 중 천골 부위 발적 2×2cm 발견','ev');}else log('박만수 님 14시 체위 변경: 피부 이상 없음','task');}
+  if(R.m===870&&!R.ev.Cq){R.ev.Cq=1;if(R.eduStart==null||R.eduStart>840){R.ev.C=870;log('이미경 님 딸: "3시 퇴원인데 주사는 언제 배워요?"','ev');}}
+ },
+ onStart(t){
+  if(t.pid==='B'&&t.kind==='체위 변경'&&R.m>=705&&R.m<=780&&R.flags.B12start==null)R.flags.B12start=R.m;
+  if(t.tag==='C_INS')R.flags.Cins=R.m;if(t.tag==='C_BST')R.flags.Cbst=R.m;
+ },
+ rankResolve(){R.tasks.forEach(t=>{if(t.st==='held'||t.st==='wait'){if((t.pid==='B'&&t.kind==='체위 변경'&&t.t<=750)||t.tag==='C_BST'||t.tag==='C_INS')t.st='resolved';}});},
+ post(t){
+  if(t.rk==='B'&&R.flags.B12start==null)R.flags.B12start=t.start;
+  if(t.rk==='CF'||t.rk==='CI'){R.flags.CinsLate=t.start-720;log(`이미경 님 식전 인슐린 ${t.start-720}분 늦게 투여 (점심 식사 보류)`,'dl');}
+  if(t.rk==='E'&&R.ev.E)log('정순자 님 외상 없음 확인, 낙상 예방 재교육','task');
+ },
+ omissions:s1Omissions,
+ behaviors(run){
+  const b={};const j=judgeRank(run);const ans=answerOrder(run.rankOpts);const lab=rankLabels(run);const ans0=run.rankOpts.find(o=>o.k===ans[0]).label.split(' (')[0];
+  const pOK=j[0]==='ok'||(j[0]==='warn'&&run.rank[0]===ans[0]);
+  b.prio=pOK?{st:'good',ev:`12:30 응급이 끝난 뒤 ${lab.join(' → ')} 순서로 정했어요.`,s:`응급이 끝난 12:30에 ${lab[0]}을 가장 먼저 골랐어요.`}
+            :{st:'needs',ev:`12:30 응급이 끝난 뒤 ${lab.join(' → ')} 순서로 정했어요. 환자 위험이 가장 큰 일은 ${ans0}였어요.`,s:`12:30에 ${lab[0]}을 먼저 해서 ${ans0}이 늦어졌어요.`};
+  const viol=scopeViol(run);const c=run.choices.c1115;
+  if(c!=='1'&&!viol)b.deleg={st:'good',ev:'11:15 지원 인력이 오자 액팅간호사를 12시 업무(박만수 님 체위 변경, 이미경 님 BST)로 돌려보냈어요.',s:'지원 인력이 오자 액팅을 12시 업무로 돌려보냈어요.'};
+  else{const p=[];if(c==='1')p.push('11:15 지원 인력 2명이 왔지만 "모두 응급 계속"을 골라 12시 업무가 밀렸어요');if(viol)p.push(`업무표에서 액팅에게 맡길 수 없는 업무 ${viol}개를 배정했어요`);b.deleg={st:'needs',ev:p.join('. ')+'.',s:c==='1'?'지원 인력이 왔는데도 액팅을 응급 현장에 그대로 뒀어요.':'액팅에게 맡길 수 없는 업무를 배정했어요.'};}
+  const eduOK=run.choices.c0940==='1'||run.schedule.some(t=>t.pid==='C'&&t.kind==='교육');
+  b.edu=eduOK?{st:'good',ev:'이미경 님 퇴원교육을 딸이 오는 시간에 맞춰 업무표에 미리 잡았어요.',s:'퇴원 환자 교육 시간을 업무표에 미리 잡았어요.'}
+             :{st:'needs',ev:`이미경 님 퇴원교육 시간을 미리 잡지 않았어요 (09:40 선택: ${CARDS[0].opts.find(o=>o[0]===run.choices.c0940)[1]}).`,s:'퇴원 환자 교육 시간을 미리 잡지 않았어요.'};
+  const r=run.choices.c1100;
+  b.report=r==='1'?{st:'good',ev:'11:00 최병철 님 SpO2 84%에 바로 의사 보고·신속대응팀을 호출했어요.',s:'최병철 님 SpO2 84%에 바로 보고했어요.'}
+                  :{st:'needs',ev:`11:00 최병철 님 SpO2 84%에 "${CARDS[1].opts.find(o=>o[0]===r)[1]}"을 골라 보고가 ${r==='2'?10:5}분 늦었어요.`,s:'최병철 님 SpO2 84%에 보고가 늦었어요.'};
+  b.interrupt=NA('이번 근무에서는 하던 일이 끊기는 상황이 없어 확인할 기회 없음');
+  b.emo=NA('이번 근무에서는 정서적 지지가 필요한 장면이 없어 확인할 기회 없음');
+  return b;
+ }
+};
+
+/* ================= 시나리오 2: 큰 사건 없이 바쁜 날 ================= */
+const S2_PIDS=['A','E','B','C','D','F','G','I','J','K'];
+const S2_P={
+ A:{room:'711호-1',name:'안경수',sex:'남',age:70,dx:'지역사회획득 폐렴',o2:'비강 캐뉼라 2L (목표 SpO2 94% 이상)',act:'침상 주변 보행',diet:'일반식',allergy:'없음',meds:'Ceftriaxone IV q24h (09시)',care:'SpO2 94% 이상 유지',score:'Morse 25 / Braden 18',plan:'–'},
+ E:{room:'711호-2',name:'황보옥',sex:'여',age:77,dx:'폐렴 회복기',o2:'실내 공기 (목표 SpO2 94% 이상)',act:'보조 하 보행',diet:'일반식',allergy:'없음',meds:'Levofloxacin PO qd (09시)',care:'낙상 고위험: 낙상 예방 표지, 미끄럼 방지 신발',score:'Morse 50 / Braden 17',plan:'–'},
+ B:{room:'712호-1',name:'송미란',sex:'여',age:81,dx:'흡인성 폐렴, 치매',o2:'실내 공기 (목표 SpO2 94% 이상)',act:'보조 하 보행',diet:'연하곤란식',allergy:'없음',meds:'Ampicillin/sulbactam IV q6h (06·12·18·24시)',care:'식사 시 침상 머리 30° 이상, 식사 보조',score:'Morse 45 / Braden 16',plan:'–'},
+ C:{room:'712호-2',name:'정다은',sex:'여',age:45,dx:'자연기흉, 흉관 삽입 2일차',o2:'실내 공기 (목표 SpO2 95% 이상)',act:'침상 주변 보행',diet:'일반식',allergy:'없음',meds:'진통제 PRN',care:'흉관 배액·공기 누출 관찰',score:'Morse 20 / Braden 20',plan:'흉부 X선 추적'},
+ D:{room:'713호-1',name:'유병기',sex:'남',age:63,dx:'폐결절, 조직검사 후 1일',o2:'실내 공기 (목표 SpO2 95% 이상)',act:'자유 보행',diet:'일반식',allergy:'조영제',meds:'–',care:'시술 부위 출혈·기흉 증상 관찰',score:'Morse 15 / Braden 21',plan:'조직검사 결과 대기'},
+ F:{room:'713호-2',name:'차민호',sex:'남',age:55,dx:'천식 회복기',o2:'실내 공기 (목표 SpO2 95% 이상)',act:'자유 보행',diet:'일반식',allergy:'없음',meds:'Budesonide/formoterol 흡입 bid',care:'흡입기 사용 확인',score:'Morse 10 / Braden 22',plan:'–'},
+ G:{room:'715호-1',name:'배선영',sex:'여',age:61,dx:'폐암, 항암 2일차',o2:'실내 공기 (목표 SpO2 95% 이상)',act:'자유 보행',diet:'일반식',allergy:'없음',meds:'항구토제 PRN (새벽 4시 투여)',care:'오심·식사량 관찰',score:'Morse 20 / Braden 19',plan:'항암 3일차 내일'},
+ I:{room:'715호-2',name:'노재현',sex:'남',age:74,dx:'간질성 폐질환',o2:'비강 캐뉼라 3L (목표 SpO2 94% 이상)',act:'보조 하 보행',diet:'일반식',allergy:'없음',meds:'Pirfenidone PO tid',care:'활동 시 SpO2 관찰',score:'Morse 40 / Braden 18',plan:'–'},
+ J:{room:'716호-1',name:'문태호',sex:'남',age:67,dx:'COPD',o2:'실내 공기 (목표 SpO2 88~92%)',act:'자유 보행',diet:'일반식',allergy:'없음',meds:'Tiotropium 흡입 qd, Budesonide/formoterol 흡입 bid',care:'호흡 양상 관찰',score:'Morse 20 / Braden 21',plan:'오늘 11시 퇴원'},
+ K:{room:'720호 (음압격리실)',name:'임성훈',sex:'남',age:52,dx:'결핵 의심 (객담 AFB 검사 예정)',o2:'–',act:'격리실 안',diet:'일반식',allergy:'없음',meds:'입원 후 처방 예정',care:'공기매개 격리: N95, 음압 확인',score:'Morse 15 / Braden 21',plan:'13시 응급실에서 입원'}
+};
+const S2_HANDOVER=[
+ {pid:'A',t:'711호 1번 안경수 님, 70세 남자, 폐렴이고 산소 2리터, 목표 산소포화도 94퍼센트 이상이에요. 9시에 항생제 들어가요. 밤사이 특이사항 없었어요.'},
+ {pid:'E',t:'711호 2번 황보옥 님, 77세 여자, 폐렴 회복기고 모스 50점 낙상 고위험이에요. 밤에는 잘 주무셨어요.'},
+ {pid:'B',t:'712호 1번 송미란 님, 81세 여자, 흡인성 폐렴이고 치매가 있으세요. 식사 때 침상 머리 올리고 보조해 주세요.'},
+ {pid:'C',t:'712호 2번 정다은 님, 자연기흉으로 흉관 2일차예요. 공기 누출 없고 배액 맑아요.'},
+ {pid:'D',t:'713호 1번 유병기 님, 어제 폐 조직검사 하셨고 드레싱 깨끗해요.'},
+ {pid:'F',t:'713호 2번 차민호 님, 천식 회복기고 특이사항 없어요.'},
+ {pid:'G',t:'715호 1번 배선영 님, 61세 여자, 폐암 항암 2일차예요. 오심 있으면 항구토제 PRN 있고, 새벽 4시에 한 번 들어갔어요.'},
+ {pid:'G',t:'밤에 잠을 거의 못 주무시고 우셨어요. 많이 힘들어하세요.'},
+ {pid:'I',t:'715호 2번 노재현 님, 74세 남자, 간질성 폐질환으로 산소 3리터, 목표 94퍼센트 이상이에요.'},
+ {pid:'I',t:'화장실만 다녀와도 산소포화도가 85까지 떨어져요. 산소 줄을 빼고 혼자 가시려고 해서 꼭 같이 가 주세요.'},
+ {pid:'J',t:'716호 1번 문태호 님, 67세 남자, COPD고 오늘 11시 퇴원이에요. 목표 산소포화도는 88에서 92퍼센트예요.'},
+ {pid:'J',t:'흡입기를 두 개 받으셨는데 아직 순서랑 사용법을 잘 못 하세요. 퇴원 전에 꼭 다시 봐 주세요.'},
+ {pid:'K',t:'1시에 응급실에서 결핵 의심 환자 임성훈 님이 올라와요. 720호 음압격리실로 받으면 돼요. 이상입니다.'}
+];
+const S2_INFO=[
+ {k:'노재현 화장실만 가도 SpO2 85%',pid:'I',voice:true,kardex:false,re:/화장실|이동|85|떨어|동행|산소 줄|혼자/,task:t=>t.pid==='I'&&t.kind==='보행 동행',did:'노재현 님 이동 중 SpO2 저하 → 보행 동행'},
+ {k:'문태호 흡입기 사용법 미숙',pid:'J',voice:true,kardex:false,re:/흡입기|순서|사용법|교육/,task:t=>t.pid==='J'&&t.kind==='교육'&&t.t<660,did:'문태호 님 흡입기 미숙 → 퇴원 전 교육'},
+ {k:'배선영 밤새 못 자고 울었음',pid:'G',voice:true,kardex:false,re:/울|잠|힘들|정서|우울|못 주무/,task:t=>t.pid==='G'&&t.kind==='정서적 지지',did:'배선영 님 밤새 울음 → 정서적 지지'},
+ {k:'임성훈 13시 음압격리 입원',pid:'K',voice:true,kardex:true,re:/입원|격리|음압|결핵|1시/,task:t=>t.pid==='K'},
+ {k:'황보옥 낙상 고위험',pid:'E',voice:true,kardex:true,re:/낙상|모스|morse|고위험/i,task:t=>t.pid==='E'&&t.kind==='낙상 위험 확인'}
+];
+const S2_CANNED=[
+ {re:/노재현/,a:'노재현 님은 화장실만 다녀와도 SpO2가 85까지 떨어져요. 산소 줄을 빼고 혼자 가시려 해서 꼭 같이 가 주셔야 해요.'},
+ {re:/문태호/,a:'문태호 님은 11시 퇴원인데 흡입기 두 개 순서를 아직 헷갈려하세요. 퇴원 전에 다시 봐 주세요.'},
+ {re:/배선영/,a:'배선영 님은 새벽 4시에 항구토제 들어갔고, 밤새 잠을 못 자고 우셨어요.'},
+ {re:/임성훈/,a:'임성훈 님은 1시에 응급실에서 올라와요. 결핵 의심이라 720호 음압격리실이고 N95 준비가 필요해요.'}
+];
+const S2_OBS={
+ A:{text:'산소 2L 유지, SpO2 95%. 특이 호소 없음.',need:[],memo:false},
+ E:{text:'침대 옆 바닥에 물이 흘러 있다. 슬리퍼는 침대 밑에 있다. "물 마시다 쏟았어요."',need:['바닥 물기·장애물 치우기'],memo:false},
+ B:{text:'침상 머리 30도로 아침 식사 중. 특이 소견 없음.',need:[],memo:false},
+ C:{text:'흉관 배액병에 기포 없음, 배액은 맑은 장액성. "숨쉴 때 조금 아파요."',need:[],memo:false},
+ D:{text:'조직검사 부위 드레싱 깨끗. 특이 호소 없음.',need:[],memo:false},
+ F:{text:'흡입기를 쓰고 있다. 호흡음 깨끗.',need:[],memo:false},
+ G:{text:'커튼을 치고 누워 있다. 눈가가 붉다. "괜찮아요…"',need:[],memo:true,why:'정서 상태를 메모해 두고 대화 시간을 잡을 대상'},
+ I:{text:'화장실에서 막 돌아왔다. 캐뉼라를 목에 걸고 있고 숨이 차 보인다. SpO2 89%.',need:['캐뉼라 위치 확인·다시 끼우기'],memo:false},
+ J:{text:'흡입기 두 개를 들고 있다. "이거 어느 걸 먼저 써야 하죠?"',need:[],memo:true,why:'퇴원 전 흡입기 교육이 필요한 신호'},
+ K:{text:'빈 음압격리실. 13시 입원 예정.',need:[],memo:false}
+};
+const S2_AUTO=[
+ {t:480,pid:'*',label:'V/S·BST 라운딩',kind:'V/S',who:'act',dur:30},
+ {t:520,pid:'*',label:'09시 투약 준비',kind:'투약',who:'me',dur:20},
+ {t:540,pid:'*',label:'09시 정규 투약',kind:'투약',who:'me',dur:30},
+ {t:660,pid:'J',label:'문태호 퇴원 (약·서류 설명)',kind:'퇴원',who:'me',dur:20,tag:'J_DC'},
+ {t:720,pid:'*',label:'정오 투약',kind:'투약',who:'me',dur:15},
+ {t:780,pid:'K',label:'임성훈 신규 입원 (음압격리, 보호구 착탈 포함)',kind:'입원',who:'me',dur:60,tag:'K_ADM'},
+ {t:840,pid:'*',label:'14시 V/S',kind:'V/S',who:'act',dur:20}
+];
+const S2_CARDS=[
+ {id:'c0850',at:()=>530,type:'one',title:'08:50 · 투약 준비 중 전화',sit:'09시 투약을 준비하는데 주치의 전화예요. "안경수 님 9시 항생제 용량 바꿀게요."',
+  opts:[['1','준비하던 곳을 표시하고 전화 받기'],['2','"10분 뒤 연락드릴게요" 하고 준비 계속'],['3','액팅간호사에게 전화를 대신 받아 달라고 하기']],
+  apply(c){
+   if(c==='1'){occupy('me',5,'간호사실','처방 변경 수령');R.tasks.push({id:'prep2',t:R.m+5,pid:'*',label:'투약 준비 마무리 (표시한 곳부터)',kind:'투약',who:'me',dur:10,st:'wait'});log('준비하던 약에 표시하고 처방 변경을 받음','task');}
+   if(c==='2'){R.tasks.push({id:'call2',t:R.m+10,pid:'A',label:'안경수 처방 변경 확인 전화',kind:'처방',who:'me',dur:5,st:'wait',tag:'CALL'});R.flags.callLate=true;log('처방 변경 확인을 미룸','dl');}
+   if(c==='3'){occupy('act',5,'간호사실','처방 전화 대신 받음');R.flags.scopeCall=true;log('액팅간호사가 처방 변경 전화를 받음 (처방 수령은 담당 업무)','dl');}}},
+ {id:'c0940',at:()=>580,type:'one',title:'09:40 · 동시 호출',sit:'배선영 님 호출: "속이 너무 메스꺼워요." 오심 호소. 같은 때 노재현 님 호출벨: "화장실 가고 싶어요." (안정 시 SpO2 94%)',
+  opts:[['1','노재현 님에게 "바로 갈게요, 혼자 일어나지 마세요" → 배선영 님 사정 후 액팅에게 항구토제 요청 → 노재현 님 화장실 동행'],['2','노재현 님 먼저 동행, 배선영 님은 나중에'],['3','액팅에게 배선영 님에게 가서 알아서 약을 주라고 함']],
+  apply(c){
+   const push=(id,t,pid,label,kind,who,dur,tag)=>R.tasks.push({id,t,pid,label,kind,who,dur,st:'wait',tag});
+   if(c==='1'){log('노재현 님에게 "바로 갈게요, 혼자 일어나지 마세요" 응답','task');push('g1',580,'G','배선영 오심 사정','사정','me',5);push('g2',585,'G','배선영 항구토제 PRN 투여 (요청)','PRN','act',5);push('i1',585,'I','노재현 화장실 동행','보행 동행','me',10);push('g3',615,'G','배선영 항구토제 효과 재사정','사정','me',5,'G_RE');}
+   if(c==='2'){push('i1',580,'I','노재현 화장실 동행','보행 동행','me',10);push('g1',590,'G','배선영 오심 사정','사정','me',5);push('g2',595,'G','배선영 항구토제 PRN 투여 (요청)','PRN','act',5);log('배선영 님 오심이 15분 더 지속','dl');}
+   if(c==='3'){push('g2',580,'G','배선영 항구토제 PRN 투여 (사정 없이)','PRN','act',5);push('i1',580,'I','노재현 화장실 동행','보행 동행','me',10);log('사정 없이 항구토제 투여를 액팅에게 맡김','dl');}}},
+ {id:'c1020',at:()=>620,type:'one',title:'10:20 · 문태호 님 보호자',
+  sitFn(){const cur=R.tasks.find(t=>t.pid==='J'&&t.kind==='교육'&&t.st==='done'&&t.start<=R.m&&t.start+t.dur>R.m);return cur?'문태호 님 흡입기 교육 중에 보호자가 묻습니다. "퇴원 서류는 언제 받아요? 11시에 차 와요."':'문태호 님 보호자: "퇴원 서류는 언제 받아요? 11시에 차 와요." 흡입기 교육은 아직 하지 못했어요.';},
+  opts:[['1','흡입기 교육부터 (마저) 하기'],['2','서류부터 설명하기'],['3','"교육 마치고 바로 설명드릴게요"라고 알리고 교육 먼저']],
+  apply(c){
+   const cur=R.tasks.find(t=>t.pid==='J'&&t.kind==='교육'&&t.st==='done'&&t.start<=R.m&&t.start+t.dur>R.m);
+   R.tasks.filter(t=>t.pid==='J'&&t.kind==='교육'&&t.st==='wait').forEach(t=>t.st='cancel');
+   if(c==='2'){if(cur){cur.cut=true;log('흡입기 교육을 멈추고 서류부터 설명','dl');}occupy('me',15,'문태호 병실','퇴원 서류 설명');}
+   else{if(!cur)R.tasks.push({id:'jedu',t:R.m,pid:'J',label:'문태호 흡입기 교육',kind:'교육',who:'me',dur:30,st:'wait'});
+    R.tasks.push({id:'jpaper',t:cur?cur.start+cur.dur:R.m+30,pid:'J',label:'문태호 퇴원 서류 설명',kind:'퇴원',who:'me',dur:10,st:'wait'});
+    if(c==='3')log('보호자에게 "교육 마치고 바로 설명드릴게요" 안내','task');}}},
+ {id:'c1230',at:()=>750,type:'rank',title:'12:30 · 입원 30분 전',sit:'응급실에서 "1시에 임성훈 님 올라가요" 연락이 왔어요. 입원을 받으면 보호구를 입고 1시간 동안 격리실에 있어야 해요. 지금 할 일 4가지의 순서를 정하세요.',
+  build(){return [
+   {k:'K',label:'임성훈 님 입원 준비 (음압격리실·N95·물품)',g:2,dur:15,who:'나'},
+   {k:'G',label:'배선영 님과 대화 (정서적 지지)',g:3,dur:10,who:'나'},
+   {k:'I',label:'노재현 님 보행 동행 계획 (입원 중 화장실 동행을 액팅에게 배정)',g:2,dur:2,who:'계획 나 · 동행 액팅'},
+   {k:'R',label:'오전 기록 정리',g:4,dur:15,who:'나'}];}},
+ {id:'c1340',at:()=>R.ev.I?821:99999,type:'one',title:'13:40 · 노재현 님',sit:'노재현 님이 혼자 화장실에 다녀온 뒤 숨이 차고 SpO2 85%예요. 나는 음압격리실에서 입원을 받는 중이에요.',
+  opts:[['1','입원을 잠시 맡기고 가서 산소 재연결·사정 후 주치의 보고'],['2','액팅에게 산소만 다시 연결해 달라고 하고 입원 계속'],['3','입원을 마친 뒤 확인']],
+  apply(c){
+   if(c==='1'){const rem=Math.max(0,R.me.busy-R.m);occupy('me',15,'노재현 병실','노재현 산소 재연결·사정·보고');if(rem)R.tasks.push({id:'kfin',t:R.m+15,pid:'K',label:'임성훈 입원 마무리',kind:'입원',who:'me',dur:rem,st:'wait'});log('노재현 님 산소 재연결·안정, SpO2 92%로 회복, 주치의 보고','task');}
+   if(c==='2'){occupy('act',10,'노재현 병실','산소 재연결');log('액팅이 산소 재연결 (사정·보고는 아직 안 됨)','dl');}
+   if(c==='3'){R.tasks.push({id:'ichk',t:840,pid:'I',label:'노재현 SpO2 재확인',kind:'사정',who:'me',dur:5,st:'wait'});log('노재현 님 확인을 입원 뒤로 미룸','dl');}}}
+];
+const SCN2={id:2,title:'큰 사건 없이 바쁜 날',PIDS:S2_PIDS,P:S2_P,HANDOVER:S2_HANDOVER,INFO:S2_INFO,CANNED:S2_CANNED,OBS:S2_OBS,AUTO:S2_AUTO,CARDS:S2_CARDS,
+ TIMEOUT:{c0850:'2',c0940:'2',c1020:'2',c1340:'3'},TIE:{I:1,K:2,G:1,R:9},
+ BASIS:{I:'⑤ 이동 중 저산소·낙상 위해 가능성 높음 (2분이면 배정 가능)',K:'④ 입원 시간 임박 (음압격리 준비)',G:'정서적 지지: 미루면 안 되지만 단기 지연이 즉각 위험은 아님',R:'해당 없음'},
+ EVAL:{
+  c0850:{'1':['ok','적절','하던 준비를 표시하고 처방 변경을 바로 받아 투약 오류를 막았어요.'],'2':['warn','부분적으로 적절','변경이 지금 준비 중인 약일 수 있어요. 바로 확인하는 편이 안전해요.'],'3':['crit','재검토 필요','처방 확인은 담당간호사 업무예요.']},
+  c0940:{'1':['ok','적절','노재현 님 안전을 먼저 확보하고, 배선영 님은 사정 후 PRN을 요청해 둘 다 지켰어요.'],'2':['warn','부분적으로 적절','노재현 님 안전은 지켰지만 배선영 님 사정이 늦어졌어요.'],'3':['crit','재검토 필요','PRN 필요 여부 판단은 담당간호사의 사정이 필요해요.']},
+  c1020:{'3':['ok','적절','보호자에게 언제 설명할지 알리고 교육을 끝까지 이어 갔어요.'],'1':['warn','부분적으로 적절','교육은 지켰지만 보호자에게 언제 설명할지 알려 주면 더 좋아요.'],'2':['crit','재검토 필요','교육을 멈추고 돌아오지 못하면 흡입기 교육이 빠져요.']},
+  c1340:{'1':['ok','적절','상태가 변한 환자를 직접 보고 주치의에게 보고했어요.'],'2':['warn','부분적으로 적절','산소 재연결은 맡길 수 있지만 사정과 보고는 담당간호사가 해요.'],'3':['crit','재검토 필요','SpO2 85%는 바로 확인해야 해요.']}},
+ ORDER:['c0850','c0940','c1020','c1230','c1340'],RANK_ID:'c1230',ROUND_KEYS:['I','E','G','J'],
+ RW:[{k:'round',label:'첫 라운딩 · 관찰 판단',desc:'관찰 판단을 다시 하고, 근무 중 선택은 처음부터 다시 해요.'},{k:'sched',label:'업무표 작성',desc:'업무표를 다시 고치고(시간 제한 없음), 근무 중 선택은 처음부터 다시 해요.'},{k:'c0940',label:'09:40 · 배선영·노재현 님 동시 호출',desc:'그 전 선택은 그대로 두고 09:40부터 다시 골라요.'},{k:'c1020',label:'10:20 · 문태호 님 보호자 질문',desc:'그 전 선택은 그대로 두고 10:20부터 다시 골라요.'},{k:'c1230',label:'12:30 · 입원 30분 전 우선순위',desc:'그 전 선택은 그대로 두고 12:30부터 다시 골라요.'}],
+ RW_PID:'I',SUP_LOC:'',SF_PID:'I',ASSIGN:'팀간호 · 담당 환자 9명 + 13시 신규 입원 1명 · 액팅간호사 1명과 함께 근무',
+ ORG_DEFAULT:['오전 퇴원·격리 입원·잦은 업무 중단이 겹친 업무량'],
+ SUGGEST:['인계에서 들은 이동 중 위험을 메모하고 보행 동행을 업무표에 넣기','퇴원 환자 교육 시간을 업무표에 먼저 잡기','동시 호출 때 위험 큰 환자에게 먼저 응답하고 PRN은 사정 후 요청하기','업무가 중단되면 하던 지점을 표시하고 돌아오기','입원 받기 전에 다른 환자 안전 업무를 액팅에게 배정하기','정서적 지지를 10분 대화로 업무표에 넣기'],
+ HANDOFF:[['노재현 님 13:40 이동 후 SpO2 저하 (활동 시 동행 필요)','I'],['문태호 님 흡입기 사용법 보호자 문의 (전화 교육 필요)','J'],['배선영 님 식사 거부·울음 (정서적 지지 필요)','G'],['임성훈 님 결핵 의심 음압격리 신규 입원','K'],['안경수 님 특이사항 없음','A'],['차민호 님 흡입기 정상 사용','F']],
+ handoffNeed(run){const n=[3];if(run.ev.I)n.push(0);if(run.ev.J)n.push(1);if(run.ev.G)n.push(2);return n.sort();},
+ PLAN:[['인계 들을 때','이동·활동 중 위험 정보에 별표하고 업무표에 동행 넣기'],['업무표 작성','퇴원교육·정서적 지지 시간을 먼저 배치하기'],['업무 중단','하던 지점을 표시하고 "몇 분 뒤"를 알린 뒤 돌아오기'],['동시 호출','위험 큰 환자에게 먼저 응답, PRN은 사정 후 요청'],['입원 전','다른 환자 안전 업무를 액팅에게 미리 배정하기'],['근무 종료','못 한 간호는 인계에 반드시 넣기']],
+ REQ:{intro:'12:30, 입원 받기 전에 액팅간호사에게 노재현 님 화장실 동행을 부탁하는 말을 적어 보세요.',ph:'예: 선생님, 1시부터 제가 격리 입원 받느라 못 나와요. 노재현 님 화장실 가실 때 산소 연결해서 같이 가 주실 수 있을까요?',
+  ctx:'13시 결핵 의심 음압격리 입원 30분 전, 노재현(간질성 폐질환, O2 3L)은 화장실만 가도 SpO2 85%로 떨어짐',
+  checks:[[/노재현/,'✔ 누구: 노재현 님이 들어 있어요.','✖ 누구: 어느 환자인지 넣어 보세요.'],[/동행|같이|화장실/,'✔ 무엇을: 화장실 동행을 부탁했어요.','✖ 무엇을: "화장실 동행"처럼 구체적으로 적어 보세요.'],[/시|입원|동안|중/,'✔ 언제: 시간이 들어 있어요.','✖ 언제: "1시부터 입원받는 동안"처럼 시간을 넣어 보세요.'],[/산소|SpO2|포화도|숨/,'✔ 왜: 산소포화도 저하 위험을 알렸어요.','✖ 왜: "화장실만 가도 산소가 떨어지세요"처럼 이유를 붙여 보세요.']],
+  warn:[/사정|교육|PRN/,'ⓘ 사정·교육·PRN 판단은 맡기지 않아요.']},
+ REASON:'같은 P2 안에서는 2분이면 끝나는 안전 배정(노재현 님 동행)을 입원 준비보다 앞에 둬요. 정서적 지지는 미루면 안 되지만 단기 지연이 즉각 위험은 아니라 P3, 기록은 P4예요.',
+ ALT:'입원 전에 액팅에게 노재현 님 화장실 동행을 맡기고, 입원 준비 → 배선영 님과 10분 대화 → 기록 순서로 하면 입원 중에도 다른 환자 안전을 지킬 수 있어요.',
+ OK_NOTE:'입원 준비보다 2분이면 끝나는 안전 배정을 먼저 한 순서가 정확했어요.',
+ branch(){return '13시 음압격리 입원 30분 전, 노재현 님 이동 위험과 배선영 님 정서 상태가 남아 있던 상태';},
+ events(){
+  const m=R.m;
+  if(m===570&&R.flags.callLate&&!R.ev.CALL&&!R.tasks.some(t=>t.tag==='CALL'&&t.st==='done'&&t.start<=545)){R.ev.CALL=570;log('안경수 님 항생제를 변경 전 용량으로 준비한 것을 투약 직전에 발견 → 다시 준비','ev');}
+  if(m===700)R.flags.Jedu=R.tasks.some(t=>t.pid==='J'&&t.kind==='교육'&&t.st==='done'&&!t.cut&&t.start+t.dur<=700);
+  if(m===820&&!R.ev.Ichk){R.ev.Ichk=1;const ok=R.tasks.some(t=>t.pid==='I'&&t.kind==='보행 동행'&&t.st==='done'&&t.start>=785&&t.start<=820);
+   if(!ok){R.ev.I=820;log('노재현 님이 산소 줄을 빼고 혼자 화장실에 다녀온 뒤 SpO2 85%, 숨참','ev');}else log('노재현 님 화장실 동행, 산소 연결 유지 → SpO2 93%','task');}
+  if(m===840&&!R.ev.Jchk){R.ev.Jchk=1;if(!R.flags.Jedu){R.ev.J=840;log('문태호 님 보호자 전화: "집에 왔는데 흡입기 어떻게 써요?"','ev');}}
+  if(m===870&&!R.ev.Gchk){R.ev.Gchk=1;const ok=R.tasks.some(t=>t.pid==='G'&&(t.kind==='정서적 지지'||t.rk==='G')&&t.st==='done'&&t.start<840);
+   if(!ok){R.ev.G=870;log('배선영 님 보호자: "어머니가 아침부터 아무것도 안 드시고 우세요."','ev');}}
+ },
+ onStart(t){
+  if(t.tag==='K_ADM'){if(R.flags.Kprep==null||R.flags.Kprep+15>R.m){R.ev.K=R.m;log('임성훈 님 도착: 음압격리실·보호구 준비가 안 돼 격리 확인이 늦어짐','ev');}else log('준비된 음압격리실로 임성훈 님 입원','task');}
+ },
+ post(t){
+  if(t.rk==='I'){R.tasks.push({id:'iesc',t:Math.max(805,R.m+1),pid:'I',label:'노재현 화장실 동행 (산소 연결)',kind:'보행 동행',who:'act',dur:10,st:'wait'});log('노재현 님 화장실 동행을 액팅에게 배정','task');}
+  if(t.rk==='K')R.flags.Kprep=t.start;
+  if(t.rk==='G')log('배선영 님과 10분 대화: "밤새 무서웠어요" 이야기를 들음','task');
+ },
+ omissions(run){
+  const o=[];const c=run.choices;const add=(k,cat,text,safe,comp,t,sitT,chT)=>o.push({k,cat,text,safe,comp,t,sitT:sitT??t,chT:chT??t});
+  if(run.ev.I)add('I','사건','노재현 님 화장실 동행 계획 누락 → 13:40 혼자 다녀온 뒤 SpO2 85%',1,'인계 듣기·메모, 업무 계획 및 배분',820,780,750);
+  if(c.c1340==='3')add('I3','선택','노재현 님 SpO2 85% 확인을 입원 뒤로 미룸',1,'환자 사정·보고',821);
+  if(run.ev.CALL)add('CALL','사건','처방 변경 확인 지연 → 안경수 님 항생제를 변경 전 용량으로 준비',2,'업무 중단 후 복귀',570,540,530);
+  if(run.ev.K)add('K','사건','임성훈 님 입원 준비 미흡 → 음압격리 확인 지연',3,'우선순위 판단',780,750,750);
+  if(c.c0940==='3')add('PRN','선택','배선영 님 오심을 사정하지 않고 항구토제 투여를 액팅에게 맡김',4,'업무 배분·위임',580);
+  if(c.c0850==='3')add('SC','선택','처방 변경 전화를 액팅간호사에게 넘김',6,'업무 배분·위임',530);
+  if(run.ev.G)add('G','사건','배선영 님 정서적 지지 누락 → 14:30 보호자 "아무것도 안 드시고 우세요"',5,'정서적 지지',870,750,580);
+  if(run.ev.J)add('J','사건','문태호 님 퇴원 전 흡입기 교육 미완 → 14:00 보호자 전화',6,'업무 계획, 업무 중단 후 복귀',840,620,620);
+  if(c.c0940!=='1'&&!(run.tasks||[]).some(t=>t.pid==='G'&&t.kind==='사정'&&t.st==='done'&&t.start>=600))add('GRE','업무표','배선영 님 항구토제 투여 후 효과 재사정 누락',7,'환자 사정',615);
+  const r=run.round||{};const acted=p=>{const x=r[p]||{};return (x.d==='act'||x.d==='both')&&OBS[p].need.some(n=>(x.a||[]).includes(n));};
+  if(!acted('I'))add('RI','라운딩','노재현 님 캐뉼라를 다시 끼우지 않음 → SpO2 89%로 둠',2,'라운딩·환자 사정',450);
+  if(!acted('E'))add('RE','라운딩','황보옥 님 침대 옆 바닥 물기를 치우지 않음 → 낙상 위험 지속',3,'라운딩·환자 사정',450);
+  unfinished(run).forEach(u=>add(u.k,'업무표',u.text,8,'업무 계획 및 배분',u.t));
+  return o.sort((a,b)=>a.safe-b.safe||a.t-b.t);
+ },
+ behaviors(run){
+  const b={};const c=run.choices;const j=judgeRank(run);const ans=answerOrder(run.rankOpts);const lab=rankLabels(run);const ans0=run.rankOpts.find(o=>o.k===ans[0]).label.split(' (')[0];
+  const rOK=j[0]==='ok'||(j[0]==='warn'&&run.rank[0]===ans[0]);const sOK=c.c0940==='1';
+  if(rOK&&sOK)b.prio={st:'good',ev:`09:40 동시 호출에서 노재현 님 안전부터 확보했고, 12:30에는 ${lab.join(' → ')} 순서로 정했어요.`,s:`동시 호출 때 노재현 님 안전을 먼저 확보하고, 입원 전에는 ${lab[0]}부터 했어요.`};
+  else{const p=[];if(!sOK)p.push(`09:40 동시 호출에서 "${S2_CARDS[1].opts.find(o=>o[0]===c.c0940)[1]}"을 골랐어요`);if(!rOK)p.push(`12:30에 ${lab.join(' → ')} 순서로 정했어요. 환자 위험이 가장 큰 일은 ${ans0}였어요`);
+   b.prio={st:'needs',ev:p.join('. ')+'.',s:!rOK?`입원 전 12:30에 ${lab[0]}을 먼저 해서 ${ans0}이 늦어졌어요.`:'동시 호출 때 두 환자를 함께 지키는 순서를 놓쳤어요.'};}
+  const viol=scopeViol(run);const issues=[];if(c.c0940==='3')issues.push('09:40 배선영 님 PRN을 사정 없이 액팅에게 맡겼어요');if(c.c0850==='3')issues.push('08:50 처방 변경 전화를 액팅에게 넘겼어요');if(viol)issues.push(`업무표에서 액팅에게 맡길 수 없는 업무 ${viol}개를 배정했어요`);
+  const iAct=run.schedule.some(t=>t.pid==='I'&&t.kind==='보행 동행'&&t.who==='act')||(run.rank||[]).includes('I')&&(run.tasks||[]).some(t=>t.id==='iesc');
+  if(!issues.length){const p=[];if(c.c0940==='1')p.push('PRN은 내가 사정한 뒤 액팅에게 투여를 요청했어요');if(iAct)p.push('입원 중 노재현 님 화장실 동행은 액팅에게 맡겼어요');b.deleg={st:'good',ev:(p.length?p.join('. '):'담당간호사 업무를 액팅에게 넘기지 않았어요')+'.',s:p.length?p.join('. ')+'.':'담당간호사 업무를 액팅에게 넘기지 않았어요.'};}
+  else b.deleg={st:'needs',ev:issues.join('. ')+'.',s:issues[0]+'.'};
+  const jt=run.schedule.find(t=>t.pid==='J'&&t.kind==='교육'&&t.t<660);
+  b.edu=jt?{st:'good',ev:`퇴원(11시) 전 문태호 님 흡입기 교육을 업무표 ${hm(jt.t)}에 미리 잡았어요.`,s:'퇴원 환자 교육 시간을 업무표에 미리 잡았어요.'}
+          :{st:'needs',ev:`문태호 님 퇴원(11시) 전 흡입기 교육 시간을 업무표에 미리 잡지 않았어요.${run.flags.Jedu?'':' 결국 퇴원 전 교육이 빠졌어요.'}`,s:'퇴원 환자 교육 시간을 미리 잡지 않았어요.'};
+  const iOK=c.c0850==='1'&&c.c1020!=='2';
+  b.interrupt=iOK?{st:'good',ev:'08:50 투약 준비 중 전화에 하던 곳을 표시하고 받았고, 10:20 보호자 질문에도 교육을 끝까지 이어 갔어요.',s:'업무가 끊길 때 하던 곳을 표시하고 다시 돌아왔어요.'}
+                 :{st:'needs',ev:[c.c0850!=='1'?`08:50 전화에 "${S2_CARDS[0].opts.find(o=>o[0]===c.c0850)[1]}"을 골랐어요`:'',c.c1020==='2'?'10:20 보호자 질문에 흡입기 교육을 멈추고 서류부터 설명했어요':''].filter(Boolean).join('. ')+'.',s:'업무가 끊긴 뒤 하던 일로 돌아오지 못했어요.'};
+  b.report=c.c1340?(c.c1340==='1'?{st:'good',ev:'13:40 노재현 님 SpO2 85%에 입원을 잠시 맡기고 직접 확인한 뒤 주치의에게 보고했어요.',s:'노재현 님 SpO2 85%에 직접 가서 확인하고 보고했어요.'}:{st:'needs',ev:`13:40 노재현 님 SpO2 85%에 "${S2_CARDS[4].opts.find(o=>o[0]===c.c1340)[1]}"을 골랐어요.`,s:'노재현 님 SpO2 85%에 직접 확인·보고가 늦었어요.'})
+           :NA('이번 근무에서는 상태가 갑자기 변한 환자가 없어 확인할 기회 없음');
+  const gOK=(run.tasks||[]).some(t=>t.pid==='G'&&(t.kind==='정서적 지지'||t.rk==='G')&&t.st==='done'&&t.start<840);
+  b.emo=gOK?{st:'good',ev:'밤새 울었던 배선영 님과 14시 전에 대화하는 시간을 가졌어요.',s:'배선영 님과 대화하는 시간을 따로 가졌어요.'}:{st:'needs',ev:'밤새 울었던 배선영 님과 대화하는 시간을 갖지 못했어요.',s:'배선영 님 정서적 지지가 빠졌어요.'};
+  return b;
+ }
+};
+const SCN_BY={1:SCN1,2:SCN2};
+function loadScenario(sc){SCN=sc;PIDS=sc.PIDS;P=sc.P;HANDOVER=sc.HANDOVER;INFO=sc.INFO;CANNED_Q=sc.CANNED;OBS=sc.OBS;AUTO_TASKS=sc.AUTO;CARDS=sc.CARDS;}
+
+/* ================= 1차 → 2차 근무 전환 ================= */
+const SHIFT_KEYS=['kLeft','rLeft','reviewed','discussed','memos','kv','kvLog','plays','hvDone','round','schedule','schedLeft','schedUsed','run1','run2','mode','chat','chatActions','chatBalance','summary','plan','reqText','reqFeedback','handoff','rewindPoint','aiReport','orgFactors','hl','scripted','chatButtons','chatBusy','chatRetry','chatErr','presetChoices'];
+function freshShift(){return {kLeft:300,rLeft:300,memoEdit:null,reviewed:[],discussed:[],memos:[],kv:{},kvLog:[],plays:0,hvDone:false,round:{},schedule:[],schedLeft:480,schedUsed:0,run1:null,run2:null,mode:'first',chat:[],chatActions:[],chatBalance:'none',summary:null,plan:null,reqText:'',reqFeedback:'',handoff:null,rewindPoint:null,aiReport:'',orgFactors:[],hl:[],scripted:false,chatButtons:[],chatBusy:false,chatRetry:false,chatErr:false,presetChoices:null};}
+function withShift(h,fn){const keep={};SHIFT_KEYS.forEach(k=>{keep[k]=S[k];S[k]=h[k];});const ks=S.shiftNo;S.shiftNo=1;const cur=SCN;loadScenario(SCN_BY[h.scn]);
+  try{fn();}finally{SHIFT_KEYS.forEach(k=>S[k]=keep[k]);S.shiftNo=ks;loadScenario(cur);}}
+function resetUI(){HV={i:-1,playing:false,timer:null,caption:false};KSEL=null;RSEL=null;SF={pid:SCN.SF_PID,kind:'보행 동행',t:600,who:'act',etc:'',from:null};SKV=PIDS[0];QA=[];SC={idx:0,step:0,vague:false};R=null;S.viewArch=false;S.aiCompare='';}
+function startShift2(){
+  const h={scn:SCN.id,title:SCN.title};SHIFT_KEYS.forEach(k=>h[k]=S[k]);h.beh=behaviors(S.run1);h.practice=S.practice&&S.practice.length?S.practice:pickPractice(h.beh);
+  S.hist={1:h};S.practice=h.practice;Object.assign(S,freshShift());S.shiftNo=2;loadScenario(SCN2);resetUI();go('assign');
+}
+
+loadScenario(SCN1);
+render();
+</script>
+</body>
+</html>
